@@ -1,16 +1,10 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Button, Heading, Label, Link, Stack, Text, TextInput } from '@primer/react'
 import { BookIcon, ChevronRightIcon, GraphIcon, UnmuteIcon, PlayIcon, SparkleFillIcon } from '@primer/octicons-react'
 import { AuthGate, SignOutButton } from '@/components/auth-gate'
 import { ImageProcessor } from '@/components/image-processor'
-
-const lessons = [
-  { title: 'At the bakery', level: 'A2', score: '87%', date: 'Today', duration: '08:42', color: 'accent' as const },
-  { title: 'Making plans', level: 'B1', score: '91%', date: 'Yesterday', duration: '12:18', color: 'success' as const },
-  { title: 'At the train station', level: 'A2', score: '78%', date: 'May 18', duration: '06:31', color: 'attention' as const },
-]
 
 export default function Page() {
   return <AuthGate><PageContent /></AuthGate>
@@ -62,6 +56,77 @@ function ModeCard({ icon, label, title, description, action, onClick }: { icon: 
 }
 
 function TeacherMode({ recording, setRecording, lessonTitle, setLessonTitle, status, setStatus, onBack }: { recording: boolean; setRecording: (value: boolean) => void; lessonTitle: string; setLessonTitle: (value: string) => void; status: string; setStatus: (value: string) => void; onBack: () => void }) {
+  const [transcript, setTranscript] = useState('')
+  const [analysis, setAnalysis] = useState<any>(null)
+  const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null)
+  const [audioChunks, setAudioChunks] = useState<Blob[]>([])
+
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      const recorder = new MediaRecorder(stream)
+      const chunks: Blob[] = []
+
+      recorder.ondataavailable = (e) => chunks.push(e.data)
+      recorder.onstop = async () => {
+        setAudioChunks(chunks)
+        const audioBlob = new Blob(chunks, { type: 'audio/webm' })
+        
+        setStatus('Processing audio...')
+        const formData = new FormData()
+        formData.append('audio', audioBlob)
+        
+        try {
+          const asrResponse = await fetch('/api/asr', { method: 'POST', body: formData })
+          const asrResult = await asrResponse.json()
+          
+          if (asrResult.segments && asrResult.segments.length > 0) {
+            const fullTranscript = asrResult.segments.map((s: any) => s.text).join(' ')
+            setTranscript(fullTranscript)
+            setStatus('Analyzing transcript...')
+            
+            const analyzeResponse = await fetch('/api/analyze', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ transcript: fullTranscript, level: 'A2' })
+            })
+            const analyzeResult = await analyzeResponse.json()
+            setAnalysis(analyzeResult)
+            setStatus('Analysis complete')
+            
+            // Save lesson to Firestore
+            await fetch('/api/lessons', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ title: lessonTitle, transcript: fullTranscript, analysis: analyzeResult, level: 'A2', duration: '00:00' })
+            })
+          }
+        } catch (error) {
+          setStatus('Processing failed')
+          console.error(error)
+        }
+        
+        stream.getTracks().forEach(track => track.stop())
+      }
+
+      recorder.start()
+      setMediaRecorder(recorder)
+      setRecording(true)
+      setStatus('Recording started')
+    } catch (error) {
+      setStatus('Microphone access denied')
+      console.error(error)
+    }
+  }
+
+  const stopRecording = () => {
+    if (mediaRecorder) {
+      mediaRecorder.stop()
+      setRecording(false)
+      setStatus('Recording stopped')
+    }
+  }
+
   return (
     <main style={{ minHeight: '100vh' }}>
       <Header onBack={onBack} />
@@ -86,12 +151,12 @@ function TeacherMode({ recording, setRecording, lessonTitle, setLessonTitle, sta
                       <Text weight="semibold">Live transcript</Text>
                       <Label variant={recording ? 'attention' : 'secondary'}>{recording ? 'Listening' : 'Waiting'}</Label>
                     </Stack>
-                    <Text style={{ color: 'var(--fgColor-muted)', lineHeight: 1.7 }}>{recording ? 'Ich möchte heute über meine Reise nach Berlin sprechen...' : 'Your transcript will appear here as the conversation unfolds.'}</Text>
+                    <Text style={{ color: 'var(--fgColor-muted)', lineHeight: 1.7 }}>{transcript || (recording ? 'Listening...' : 'Your transcript will appear here as the conversation unfolds.')}</Text>
                   </Stack>
                 </div>
                 <Stack direction="horizontal" justify="space-between" align="center">
                   <Text size="small" style={{ color: 'var(--fgColor-muted)' }}>{status}</Text>
-                  <Button variant="primary" leadingVisual={<UnmuteIcon />} onClick={() => { setRecording(!recording); setStatus(recording ? 'Recording stopped' : 'Recording started'); }}>{recording ? 'Stop recording' : 'Start recording'}</Button>
+                  <Button variant="primary" leadingVisual={<UnmuteIcon />} onClick={recording ? stopRecording : startRecording}>{recording ? 'Stop recording' : 'Start recording'}</Button>
                 </Stack>
               </Stack>
             </section>
@@ -101,7 +166,13 @@ function TeacherMode({ recording, setRecording, lessonTitle, setLessonTitle, sta
                   <Heading as="h2" variant="medium">AI Feedback</Heading>
                   <Text style={{ color: 'var(--fgColor-muted)' }}>Corrections and learning suggestions will appear here.</Text>
                   <div style={{ minHeight: 200, border: 'var(--borderWidth-thin) solid var(--borderColor-muted)', borderRadius: 8, padding: 16, background: 'var(--bgColor-default)' }}>
-                    <Text size="small" style={{ color: 'var(--fgColor-muted)' }}>Analysis will be generated when you stop recording.</Text>
+                    {analysis ? (
+                      <Text size="small" style={{ color: 'var(--fgColor-muted)' }}>
+                        {JSON.stringify(analysis, null, 2)}
+                      </Text>
+                    ) : (
+                      <Text size="small" style={{ color: 'var(--fgColor-muted)' }}>Analysis will be generated when you stop recording.</Text>
+                    )}
                   </div>
                 </Stack>
               </section>
@@ -115,5 +186,64 @@ function TeacherMode({ recording, setRecording, lessonTitle, setLessonTitle, sta
 }
 
 function LearnerMode({ onBack }: { onBack: () => void }) {
-  return <main style={{ minHeight: '100vh' }}><Header onBack={onBack} /><div style={{ maxWidth: 1160, margin: '0 auto', padding: '40px 28px 80px' }}><Stack direction="vertical" gap="spacious"><Stack direction="horizontal" justify="space-between" align="end"><Stack direction="vertical" gap="condensed"><Label variant="accent">Learner Mode</Label><Heading as="h1" variant="large">Your learning space</Heading><Text style={{ color: 'var(--fgColor-muted)' }}>Small conversations become confident habits.</Text></Stack><Button onClick={onBack}>Change mode</Button></Stack><Stack direction="horizontal" gap="normal" style={{ flexWrap: 'wrap' }}><div style={{ flex: '1 1 220px', border: 'var(--borderWidth-thin) solid var(--borderColor-default)', borderRadius: 12, padding: 24 }}><Text size="small" style={{ color: 'var(--fgColor-muted)' }}>Average accuracy</Text><Heading as="h2" variant="large">86%</Heading><Text size="small" style={{ color: 'var(--fgColor-success)' }}>+8% this month</Text></div><div style={{ flex: '1 1 220px', border: 'var(--borderWidth-thin) solid var(--borderColor-default)', borderRadius: 12, padding: 24 }}><Text size="small" style={{ color: 'var(--fgColor-muted)' }}>Lessons completed</Text><Heading as="h2" variant="large">12</Heading><Text size="small">Keep your streak going</Text></div></Stack><Stack direction="vertical" gap="normal"><Heading as="h2" variant="medium">Saved lessons</Heading>{lessons.map((lesson) => <div key={lesson.title} style={{ border: 'var(--borderWidth-thin) solid var(--borderColor-default)', borderRadius: 12, padding: 20 }}><Stack direction="horizontal" justify="space-between" align="center"><Stack direction="horizontal" gap="normal" align="center"><span style={{ color: 'var(--fgColor-accent)' }}><PlayIcon size={20} /></span><Stack direction="vertical" gap="condensed"><Text weight="semibold">{lesson.title}</Text><Text size="small" style={{ color: 'var(--fgColor-muted)' }}>{lesson.level} · {lesson.duration} · {lesson.date}</Text></Stack></Stack><Stack direction="horizontal" gap="condensed" align="center"><Label variant={lesson.color}>{lesson.score}</Label><Button size="small">Review</Button></Stack></Stack></div>)}</Stack></Stack></div></main>
+  const [lessons, setLessons] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    fetch('/api/lessons')
+      .then(res => res.json())
+      .then(data => {
+        if (data.lessons) setLessons(data.lessons)
+        setLoading(false)
+      })
+      .catch(() => setLoading(false))
+  }, [])
+
+  return (
+    <main style={{ minHeight: '100vh' }}>
+      <Header onBack={onBack} />
+      <div style={{ maxWidth: 1160, margin: '0 auto', padding: '40px 28px 80px' }}>
+        <Stack direction="vertical" gap="spacious">
+          <Stack direction="horizontal" justify="space-between" align="end">
+            <Stack direction="vertical" gap="condensed">
+              <Label variant="accent">Learner Mode</Label>
+              <Heading as="h1" variant="large">Your learning space</Heading>
+              <Text style={{ color: 'var(--fgColor-muted)' }}>Small conversations become confident habits.</Text>
+            </Stack>
+            <Button onClick={onBack}>Change mode</Button>
+          </Stack>
+          <Stack direction="horizontal" gap="normal" style={{ flexWrap: 'wrap' }}>
+            <div style={{ flex: '1 1 220px', border: 'var(--borderWidth-thin) solid var(--borderColor-default)', borderRadius: 12, padding: 24 }}>
+              <Text size="small" style={{ color: 'var(--fgColor-muted)' }}>Lessons completed</Text>
+              <Heading as="h2" variant="large">{lessons.length}</Heading>
+              <Text size="small">Keep your streak going</Text>
+            </div>
+          </Stack>
+          <Stack direction="vertical" gap="normal">
+            <Heading as="h2" variant="medium">Saved lessons</Heading>
+            {loading ? (
+              <Text>Loading lessons...</Text>
+            ) : lessons.length === 0 ? (
+              <Text style={{ color: 'var(--fgColor-muted)' }}>No lessons yet. Start recording in Teacher Mode!</Text>
+            ) : (
+              lessons.map((lesson) => (
+                <div key={lesson.id} style={{ border: 'var(--borderWidth-thin) solid var(--borderColor-default)', borderRadius: 12, padding: 20 }}>
+                  <Stack direction="horizontal" justify="space-between" align="center">
+                    <Stack direction="horizontal" gap="normal" align="center">
+                      <span style={{ color: 'var(--fgColor-accent)' }}><PlayIcon size={20} /></span>
+                      <Stack direction="vertical" gap="condensed">
+                        <Text weight="semibold">{lesson.title}</Text>
+                        <Text size="small" style={{ color: 'var(--fgColor-muted)' }}>{lesson.level} · {lesson.duration} · {new Date(lesson.createdAt).toLocaleDateString()}</Text>
+                      </Stack>
+                    </Stack>
+                    <Label variant="success">Completed</Label>
+                  </Stack>
+                </div>
+              ))
+            )}
+          </Stack>
+        </Stack>
+      </div>
+    </main>
+  )
 }
