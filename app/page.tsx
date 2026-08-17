@@ -5,6 +5,7 @@ import { Button, Heading, Label, Link, Stack, Text, TextInput } from '@primer/re
 import { BookIcon, ChevronRightIcon, GraphIcon, UnmuteIcon, PlayIcon, SparkleFillIcon } from '@primer/octicons-react'
 import { AuthGate, SignOutButton } from '@/components/auth-gate'
 import { ImageProcessor } from '@/components/image-processor'
+import { Translator } from '@/components/translator'
 
 export default function Page() {
   return <AuthGate><PageContent /></AuthGate>
@@ -176,6 +177,7 @@ function TeacherMode({ recording, setRecording, lessonTitle, setLessonTitle, sta
                   </div>
                 </Stack>
               </section>
+              <Translator text={transcript} />
               <ImageProcessor />
             </Stack>
           </div>
@@ -238,10 +240,17 @@ function LearnerMode({ onBack }: { onBack: () => void }) {
                     </Stack>
                     <Label variant="success">Completed</Label>
                   </Stack>
+                  {lesson.transcript && (
+                    <div style={{ marginTop: 12, padding: 12, background: 'var(--bgColor-default)', borderRadius: 8 }}>
+                      <Text size="small" style={{ color: 'var(--fgColor-muted)', marginBottom: 8 }}>Transcript:</Text>
+                      <Text size="small">{lesson.transcript.slice(0, 200)}{lesson.transcript.length > 200 ? '...' : ''}</Text>
+                    </div>
+                  )}
                 </div>
               ))
             )}
           </Stack>
+          <Translator />
         </Stack>
       </div>
     </main>
