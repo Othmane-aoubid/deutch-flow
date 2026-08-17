@@ -1,0 +1,28 @@
+{
+  "name": "deutschflow",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint ."
+  },
+  "dependencies": {
+    "@primer/octicons-react": "^19.16.0",
+    "@primer/primitives": "^11.0.0",
+    "@primer/react": "^38.35.1",
+    "firebase": "^12.17.1",
+    "firebase-admin": "^14.2.0",
+    "next": "^16.0.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "styled-components": "^6.1.19"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "typescript": "^5.7.0"
+  }
+}
