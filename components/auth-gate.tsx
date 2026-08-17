@@ -76,7 +76,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
             <Text size="small" style={{ color: 'var(--fgColor-muted)' }}>or</Text>
             <div style={{ flex: 1, height: 1, background: 'var(--borderColor-default)' }}></div>
           </div>
-          <Button variant="secondary" onClick={signInWithGoogle} style={{ width: '100%' }}>Sign in with Google</Button>
+          <Button variant="default" onClick={signInWithGoogle} style={{ width: '100%' }}>Sign in with Google</Button>
         </Stack>
         <Link as="button" onClick={() => setRegistering(!registering)}>
           {registering ? 'Already have an account? Sign in' : 'New here? Create an account'}
