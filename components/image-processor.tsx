@@ -1,8 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { Button, Stack, Text, Label, Box } from '@primer/react'
-import { ImageIcon, CloudUploadIcon, CheckCircleIcon, XCircleIcon } from '@primer/octicons-react'
+import { Button, Stack, Text, Label } from '@primer/react'
+import { ImageIcon, UploadIcon, CheckCircleIcon, XCircleIcon } from '@primer/octicons-react'
 
 interface ImageProcessorProps {
   onImageProcessed?: (result: any) => void
@@ -83,7 +83,7 @@ export function ImageProcessor({ onImageProcessed, maxImages = 5 }: ImageProcess
   }
 
   return (
-    <Box style={{ border: 'var(--borderWidth-thin) solid var(--borderColor-default)', borderRadius: 12, padding: 24 }}>
+    <div style={{ border: 'var(--borderWidth-thin) solid var(--borderColor-default)', borderRadius: 12, padding: 24 }}>
       <Stack direction="vertical" gap="normal">
         <Stack direction="horizontal" align="center" gap="condensed">
           <ImageIcon size={24} />
@@ -105,31 +105,33 @@ export function ImageProcessor({ onImageProcessed, maxImages = 5 }: ImageProcess
             id="image-upload"
           />
           <label htmlFor="image-upload">
-            <Button as="span" disabled={uploading} leadingVisual={CloudUploadIcon}>
+            <Button as="span" disabled={uploading} leadingVisual={UploadIcon}>
               {uploading ? 'Processing...' : 'Upload Images'}
             </Button>
           </label>
         </Stack>
 
         {error && (
-          <Box style={{ color: 'var(--fgColor-danger)', display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ color: 'var(--fgColor-danger)', display: 'flex', alignItems: 'center', gap: 8 }}>
             <XCircleIcon />
             <Text>{error}</Text>
-          </Box>
+          </div>
         )}
 
         {results.length > 0 && (
           <Stack direction="vertical" gap="condensed">
             <Label variant="success">Processed Images</Label>
             {results.map((result, index) => (
-              <Box key={index} style={{ 
+              <div key={index} style={{ 
                 background: 'var(--bgColor-muted)', 
                 borderRadius: 8, 
                 padding: 16,
                 border: 'var(--borderWidth-thin) solid var(--borderColor-default)'
               }}>
                 <Stack direction="horizontal" align="center" gap="condensed">
-                  <CheckCircleIcon style={{ color: 'var(--fgColor-success)' }} />
+                  <span style={{ color: 'var(--fgColor-success)' }}>
+                    <CheckCircleIcon />
+                  </span>
                   <Text>Image {index + 1}</Text>
                   {result.size && (
                     <Text size="small" style={{ color: 'var(--fgColor-muted)' }}>
@@ -138,17 +140,17 @@ export function ImageProcessor({ onImageProcessed, maxImages = 5 }: ImageProcess
                   )}
                 </Stack>
                 {result.analysis && (
-                  <Box style={{ marginTop: 12 }}>
+                  <div style={{ marginTop: 12 }}>
                     <Text size="small" style={{ color: 'var(--fgColor-muted)' }}>
                       {result.analysis.germanText || 'Analysis complete'}
                     </Text>
-                  </Box>
+                  </div>
                 )}
-              </Box>
+              </div>
             ))}
           </Stack>
         )}
       </Stack>
-    </Box>
+    </div>
   )
 }
