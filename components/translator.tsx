@@ -14,6 +14,7 @@ export function Translator({ text, onTranslation }: TranslatorProps) {
   const [translation, setTranslation] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [speaking, setSpeaking] = useState(false)
 
   const handleTranslate = async () => {
     if (!inputText.trim()) return
@@ -42,6 +43,20 @@ export function Translator({ text, onTranslation }: TranslatorProps) {
     } finally {
       setLoading(false)
     }
+  }
+
+  const handleSpeak = () => {
+    if (!translation || !window.speechSynthesis) return
+    
+    setSpeaking(true)
+    const utterance = new SpeechSynthesisUtterance(translation)
+    utterance.lang = targetLanguage === 'Arabic' ? 'ar-SA' : 'en-US'
+    utterance.rate = 0.9
+    
+    utterance.onend = () => setSpeaking(false)
+    utterance.onerror = () => setSpeaking(false)
+    
+    window.speechSynthesis.speak(utterance)
   }
 
   return (
@@ -89,7 +104,17 @@ export function Translator({ text, onTranslation }: TranslatorProps) {
         
         {translation && (
           <div style={{ marginTop: 16, padding: 16, background: 'var(--bgColor-default)', borderRadius: 8, border: 'var(--borderWidth-thin) solid var(--borderColor-muted)' }}>
-            <Text size="small" style={{ color: 'var(--fgColor-muted)', marginBottom: 8 }}>Translation ({targetLanguage}):</Text>
+            <Stack direction="horizontal" justify="space-between" align="center" style={{ marginBottom: 8 }}>
+              <Text size="small" style={{ color: 'var(--fgColor-muted)' }}>Translation ({targetLanguage}):</Text>
+              <Button 
+                variant="default" 
+                size="small" 
+                onClick={handleSpeak}
+                disabled={speaking}
+              >
+                {speaking ? 'Speaking...' : '🔊 Speak'}
+              </Button>
+            </Stack>
             <Text style={{ direction: targetLanguage === 'Arabic' ? 'rtl' : 'ltr', fontSize: targetLanguage === 'Arabic' ? 18 : 14 }}>
               {translation}
             </Text>
