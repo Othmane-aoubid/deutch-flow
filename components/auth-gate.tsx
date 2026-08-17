@@ -58,13 +58,13 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
         </Stack>
         <form onSubmit={submit}>
           <Stack direction="vertical" gap="normal">
-            <FormControl>
+            <FormControl required>
               <FormControl.Label>Email</FormControl.Label>
-              <TextInput type="email" value={email} onChange={(event) => setEmail(event.target.value)} required />
+              <TextInput type="email" value={email} onChange={(event) => setEmail(event.target.value)} />
             </FormControl>
-            <FormControl>
+            <FormControl required>
               <FormControl.Label>Password</FormControl.Label>
-              <TextInput type="password" value={password} onChange={(event) => setPassword(event.target.value)} minLength={6} required />
+              <TextInput type="password" value={password} onChange={(event) => setPassword(event.target.value)} minLength={6} />
             </FormControl>
             {error && <Text style={{ color: 'var(--fgColor-danger)' }}>{error}</Text>}
             <Button variant="primary" type="submit">{registering ? 'Create account' : 'Sign in'}</Button>
