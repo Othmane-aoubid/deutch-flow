@@ -6,23 +6,30 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "setup:firestore": "ts-node scripts/setup-firestore.ts"
   },
   "dependencies": {
+    "@google-cloud/aiplatform": "^7.1.0",
+    "@google/generative-ai": "^0.24.1",
     "@primer/octicons-react": "^19.16.0",
     "@primer/primitives": "^11.0.0",
     "@primer/react": "^38.35.1",
+    "dotenv": "^17.4.2",
     "firebase": "^12.17.1",
     "firebase-admin": "^14.2.0",
     "next": "^16.0.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
+    "sharp": "^0.35.3",
     "styled-components": "^6.1.19"
   },
   "devDependencies": {
+    "@types/dotenv": "^8.2.3",
     "@types/node": "^22.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
+    "ts-node": "^10.9.2",
     "typescript": "^5.7.0"
   }
 }

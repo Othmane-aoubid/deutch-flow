@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Button, Heading, Label, Link, Stack, Text, TextInput } from '@primer/react'
 import { BookIcon, ChevronRightIcon, GraphIcon, UnmuteIcon, PlayIcon, SparkleFillIcon } from '@primer/octicons-react'
 import { AuthGate, SignOutButton } from '@/components/auth-gate'
+import { ImageProcessor } from '@/components/image-processor'
 
 const lessons = [
   { title: 'At the bakery', level: 'A2', score: '87%', date: 'Today', duration: '08:42', color: 'accent' as const },
@@ -61,9 +62,58 @@ function ModeCard({ icon, label, title, description, action, onClick }: { icon: 
 }
 
 function TeacherMode({ recording, setRecording, lessonTitle, setLessonTitle, status, setStatus, onBack }: { recording: boolean; setRecording: (value: boolean) => void; lessonTitle: string; setLessonTitle: (value: string) => void; status: string; setStatus: (value: string) => void; onBack: () => void }) {
-  return <main style={{ minHeight: '100vh' }}><Header onBack={onBack} /><div style={{ maxWidth: 1160, margin: '0 auto', padding: '40px 28px 80px' }}><Stack direction="vertical" gap="spacious"><Stack direction="horizontal" justify="space-between" align="end"><Stack direction="vertical" gap="condensed"><Label variant="accent">Teacher Mode</Label><Heading as="h1" variant="large">Record a lesson</Heading><Text style={{ color: 'var(--fgColor-muted)' }}>Speak naturally. DeutschFlow will listen for the moments that help learners grow.</Text></Stack><Button onClick={onBack}>Change mode</Button></Stack><div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.1fr) minmax(300px, .9fr)', gap: 24 }}><section style={{ border: 'var(--borderWidth-thin) solid var(--borderColor-default)', borderRadius: 12, padding: 28, background: 'var(--bgColor-muted)' }}><Stack direction="vertical" gap="normal"><TextInput aria-label="Lesson title" value={lessonTitle} onChange={(e) => setLessonTitle(e.target.value)} /><div style={{ minHeight: 260, border: 'var(--borderWidth-thin) solid var(--borderColor-muted)', borderRadius: 8, padding: 20, background: 'var(--bgColor-default)' }}><Stack direction="vertical" gap="normal"><Stack direction="horizontal" gap="condensed" align="center"><span style={{ color: recording ? 'var(--fgColor-open)' : 'var(--fgColor-muted)' }}><UnmuteIcon /></span><Text weight="semibold">Live transcript</Text><Label variant={recording ? 'attention' : 'secondary'}>{recording ? 'Listening' : 'Waiting'}</Label></Stack><Text style={{ color: 'var(--fgColor-muted)', lineHeight: 1.7 }}>{recording ? 'Ich möchte heute über meine Reise nach Berlin sprechen...' : 'Your transcript will appear here as the conversation unfolds.'}</Text></Stack></div><Stack direction="horizontal" justify="space-between" align="center"><Text size="small" style={{ color: 'var(--fgColor-muted)' }}>{status}</Text><Button variant="primary" leadingVisual={<UnmuteIcon />} onClick={() => { setRecording(!recording); setStatus(recording ? 'Recording saved for analysis' : 'Microphone is active') }}>{recording ? 'Stop recording' : 'Start recording'}</Button></Stack></Stack></section><section style={{ border: 'var(--borderWidth-thin) solid var(--borderColor-default)', borderRadius: 12, padding: 28 }}><Stack direction="vertical" gap="normal"><Heading as="h2" variant="small">Lesson setup</Heading><Text size="small" style={{ color: 'var(--fgColor-muted)' }}>Choose a level so feedback stays useful and encouraging.</Text><Stack direction="horizontal" gap="condensed"><Label variant="accent">A2</Label><Label variant="secondary">B1</Label><Label variant="secondary">B2</Label></Stack><hr style={{ width: '100%', border: 0, borderTop: 'var(--borderWidth-thin) solid var(--borderColor-muted)' }} /><Stack direction="horizontal" gap="condensed" align="center"><GraphIcon size={16} /><Text size="small">AI analysis includes corrections, vocabulary, and next steps.</Text></Stack></Stack></section></div></Stack></div></main>
+  return (
+    <main style={{ minHeight: '100vh' }}>
+      <Header onBack={onBack} />
+      <div style={{ maxWidth: 1160, margin: '0 auto', padding: '40px 28px 80px' }}>
+        <Stack direction="vertical" gap="spacious">
+          <Stack direction="horizontal" justify="space-between" align="end">
+            <Stack direction="vertical" gap="condensed">
+              <Label variant="accent">Teacher Mode</Label>
+              <Heading as="h1" variant="large">Record a lesson</Heading>
+              <Text style={{ color: 'var(--fgColor-muted)' }}>Speak naturally. DeutschFlow will listen for the moments that help learners grow.</Text>
+            </Stack>
+            <Button onClick={onBack}>Change mode</Button>
+          </Stack>
+          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.1fr) minmax(300px, .9fr)', gap: 24 }}>
+            <section style={{ border: 'var(--borderWidth-thin) solid var(--borderColor-default)', borderRadius: 12, padding: 28, background: 'var(--bgColor-muted)' }}>
+              <Stack direction="vertical" gap="normal">
+                <TextInput aria-label="Lesson title" value={lessonTitle} onChange={(e) => setLessonTitle(e.target.value)} />
+                <div style={{ minHeight: 260, border: 'var(--borderWidth-thin) solid var(--borderColor-muted)', borderRadius: 8, padding: 20, background: 'var(--bgColor-default)' }}>
+                  <Stack direction="vertical" gap="normal">
+                    <Stack direction="horizontal" gap="condensed" align="center">
+                      <span style={{ color: recording ? 'var(--fgColor-open)' : 'var(--fgColor-muted)' }}><UnmuteIcon /></span>
+                      <Text weight="semibold">Live transcript</Text>
+                      <Label variant={recording ? 'attention' : 'secondary'}>{recording ? 'Listening' : 'Waiting'}</Label>
+                    </Stack>
+                    <Text style={{ color: 'var(--fgColor-muted)', lineHeight: 1.7 }}>{recording ? 'Ich möchte heute über meine Reise nach Berlin sprechen...' : 'Your transcript will appear here as the conversation unfolds.'}</Text>
+                  </Stack>
+                </div>
+                <Stack direction="horizontal" justify="space-between" align="center">
+                  <Text size="small" style={{ color: 'var(--fgColor-muted)' }}>{status}</Text>
+                  <Button variant="primary" leadingVisual={<UnmuteIcon />} onClick={() => { setRecording(!recording); setStatus(recording ? 'Recording stopped' : 'Recording started'); }}>{recording ? 'Stop recording' : 'Start recording'}</Button>
+                </Stack>
+              </Stack>
+            </section>
+            <Stack direction="vertical" gap="normal">
+              <section style={{ border: 'var(--borderWidth-thin) solid var(--borderColor-default)', borderRadius: 12, padding: 28, background: 'var(--bgColor-muted)' }}>
+                <Stack direction="vertical" gap="normal">
+                  <Heading as="h2" variant="medium">AI Feedback</Heading>
+                  <Text style={{ color: 'var(--fgColor-muted)' }}>Corrections and learning suggestions will appear here.</Text>
+                  <div style={{ minHeight: 200, border: 'var(--borderWidth-thin) solid var(--borderColor-muted)', borderRadius: 8, padding: 16, background: 'var(--bgColor-default)' }}>
+                    <Text size="small" style={{ color: 'var(--fgColor-muted)' }}>Analysis will be generated when you stop recording.</Text>
+                  </div>
+                </Stack>
+              </section>
+              <ImageProcessor />
+            </Stack>
+          </div>
+        </Stack>
+      </div>
+    </main>
+  )
 }
 
 function LearnerMode({ onBack }: { onBack: () => void }) {
-  return <main style={{ minHeight: '100vh' }}><Header onBack={onBack} /><div style={{ maxWidth: 1160, margin: '0 auto', padding: '40px 28px 80px' }}><Stack direction="vertical" gap="spacious"><Stack direction="horizontal" justify="space-between" align="end"><Stack direction="vertical" gap="condensed"><Label variant="accent">Learner Mode</Label><Heading as="h1" variant="large">Your learning space</Heading><Text style={{ color: 'var(--fgColor-muted)' }}>Small conversations become confident habits.</Text></Stack><Button onClick={onBack}>Change mode</Button></Stack><Stack direction="horizontal" gap="normal" style={{ flexWrap: 'wrap' }}><div style={{ flex: '1 1 220px', border: 'var(--borderWidth-thin) solid var(--borderColor-default)', borderRadius: 12, padding: 24 }}><Text size="small" style={{ color: 'var(--fgColor-muted)' }}>Average accuracy</Text><Heading as="h2" variant="large">86%</Heading><Text size="small" style={{ color: 'var(--fgColor-success)' }}>+8% this month</Text></div><div style={{ flex: '1 1 220px', border: 'var(--borderWidth-thin) solid var(--borderColor-default)', borderRadius: 12, padding: 24 }}><Text size="small" style={{ color: 'var(--fgColor-muted)' }}>Lessons completed</Text><Heading as="h2" variant="large">12</Heading><Text size="small">Keep your streak going</Text></div></Stack><Stack direction="vertical" gap="normal"><Heading as="h2" variant="medium">Saved lessons</Heading>{lessons.map((lesson) => <div key={lesson.title} style={{ border: 'var(--borderWidth-thin) solid var(--borderColor-default)', borderRadius: 12, padding: 20 }}><Stack direction="horizontal" justify="space-between" align="center"><Stack direction="horizontal" gap="normal" align="center"><span style={{ color: 'var(--fgColor-accent)' }}><PlayIcon size={20} /></span><Stack direction="vertical" gap="condensed"><Text weight="semibold">{lesson.title}</Text><Text size="small" style={{ color: 'var(--fgColor-muted)' }}>{lesson.level} · {lesson.duration} · {lesson.date}</Text></Stack></Stack><Stack direction="horizontal" gap="normal" align="center"><Label variant={lesson.color}>{lesson.score}</Label><Button variant="invisible">Review</Button></Stack></Stack></div>)}</Stack></Stack></div></main>
+  return <main style={{ minHeight: '100vh' }}><Header onBack={onBack} /><div style={{ maxWidth: 1160, margin: '0 auto', padding: '40px 28px 80px' }}><Stack direction="vertical" gap="spacious"><Stack direction="horizontal" justify="space-between" align="end"><Stack direction="vertical" gap="condensed"><Label variant="accent">Learner Mode</Label><Heading as="h1" variant="large">Your learning space</Heading><Text style={{ color: 'var(--fgColor-muted)' }}>Small conversations become confident habits.</Text></Stack><Button onClick={onBack}>Change mode</Button></Stack><Stack direction="horizontal" gap="normal" style={{ flexWrap: 'wrap' }}><div style={{ flex: '1 1 220px', border: 'var(--borderWidth-thin) solid var(--borderColor-default)', borderRadius: 12, padding: 24 }}><Text size="small" style={{ color: 'var(--fgColor-muted)' }}>Average accuracy</Text><Heading as="h2" variant="large">86%</Heading><Text size="small" style={{ color: 'var(--fgColor-success)' }}>+8% this month</Text></div><div style={{ flex: '1 1 220px', border: 'var(--borderWidth-thin) solid var(--borderColor-default)', borderRadius: 12, padding: 24 }}><Text size="small" style={{ color: 'var(--fgColor-muted)' }}>Lessons completed</Text><Heading as="h2" variant="large">12</Heading><Text size="small">Keep your streak going</Text></div></Stack><Stack direction="vertical" gap="normal"><Heading as="h2" variant="medium">Saved lessons</Heading>{lessons.map((lesson) => <div key={lesson.title} style={{ border: 'var(--borderWidth-thin) solid var(--borderColor-default)', borderRadius: 12, padding: 20 }}><Stack direction="horizontal" justify="space-between" align="center"><Stack direction="horizontal" gap="normal" align="center"><span style={{ color: 'var(--fgColor-accent)' }}><PlayIcon size={20} /></span><Stack direction="vertical" gap="condensed"><Text weight="semibold">{lesson.title}</Text><Text size="small" style={{ color: 'var(--fgColor-muted)' }}>{lesson.level} · {lesson.duration} · {lesson.date}</Text></Stack></Stack><Stack direction="horizontal" gap="condensed" align="center"><Label variant={lesson.color}>{lesson.score}</Label><Button size="small">Review</Button></Stack></Stack></div>)}</Stack></Stack></div></main>
 }

@@ -20,6 +20,10 @@ export async function POST(request: Request) {
     title: typeof body.title === 'string' ? body.title.slice(0, 160) : 'Untitled lesson',
     transcript: typeof body.transcript === 'string' ? body.transcript.slice(0, 50000) : '',
     analysis: body.analysis ?? null,
+    level: typeof body.level === 'string' ? body.level : 'A2',
+    duration: typeof body.duration === 'string' ? body.duration : '00:00',
+    score: typeof body.score === 'number' ? body.score : 0,
+    images: Array.isArray(body.images) ? body.images.slice(0, 10) : [],
     userId: user.uid,
     createdAt: new Date().toISOString(),
   }
