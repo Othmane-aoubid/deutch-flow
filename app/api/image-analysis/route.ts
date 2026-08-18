@@ -2,12 +2,17 @@ import { NextResponse } from 'next/server'
 import { adminDb, firebaseAdminConfigured, verifyFirebaseToken } from '@/lib/firebase-admin'
 
 export async function GET(request: Request) {
-  const user = await verifyFirebaseToken(request)
-  if (!firebaseAdminConfigured || !adminDb) return NextResponse.json({ error: 'Firebase Admin is not configured.' }, { status: 503 })
-  if (!user) return NextResponse.json({ error: 'Sign-in required.' }, { status: 401 })
+  try {
+    const user = await verifyFirebaseToken(request)
+    if (!firebaseAdminConfigured || !adminDb) return NextResponse.json({ error: 'Firebase Admin is not configured.' }, { status: 503 })
+    if (!user) return NextResponse.json({ error: 'Sign-in required.' }, { status: 401 })
 
-  const snapshot = await adminDb.collection('imageAnalysis').where('userId', '==', user.uid).orderBy('createdAt', 'desc').limit(50).get()
-  return NextResponse.json({ analyses: snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })) })
+    const snapshot = await adminDb.collection('imageAnalysis').where('userId', '==', user.uid).orderBy('createdAt', 'desc').limit(50).get()
+    return NextResponse.json({ analyses: snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })) })
+  } catch (error) {
+    console.error('Error loading image analyses:', error)
+    return NextResponse.json({ error: 'Failed to load analyses', details: error instanceof Error ? error.message : 'Unknown error' }, { status: 500 })
+  }
 }
 
 export async function POST(request: Request) {

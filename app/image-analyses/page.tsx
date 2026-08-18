@@ -27,11 +27,15 @@ export default function ImageAnalysesPage() {
       }
       const response = await fetch('/api/image-analysis', { headers })
       const data = await response.json()
+      if (!response.ok) {
+        setError(data.error || data.details || 'Failed to load analyses')
+        return
+      }
       if (data.analyses) {
         setAnalyses(data.analyses)
       }
     } catch (err) {
-      setError('Failed to load analyses')
+      setError(err instanceof Error ? err.message : 'Failed to load analyses')
     } finally {
       setLoading(false)
     }
