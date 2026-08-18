@@ -51,37 +51,6 @@ export function ImageProcessor({ onImageProcessed, maxImages = 5 }: ImageProcess
     }
   }
 
-  const handleOptimizeImage = async (file: File) => {
-    setUploading(true)
-    setError(null)
-
-    try {
-      const formData = new FormData()
-      formData.append('image', file)
-      formData.append('action', 'optimize')
-
-      const response = await fetch('/api/images', {
-        method: 'POST',
-        body: formData,
-      })
-
-      if (!response.ok) {
-        throw new Error('Failed to optimize image')
-      }
-
-      const result = await response.json()
-      setResults(prev => [...prev, result])
-      
-      if (onImageProcessed) {
-        onImageProcessed(result)
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to optimize image')
-    } finally {
-      setUploading(false)
-    }
-  }
-
   return (
     <div style={{ border: 'var(--borderWidth-thin) solid var(--borderColor-default)', borderRadius: 12, padding: 24 }}>
       <Stack direction="vertical" gap="normal">
@@ -91,7 +60,7 @@ export function ImageProcessor({ onImageProcessed, maxImages = 5 }: ImageProcess
         </Stack>
         
         <Text style={{ color: 'var(--fgColor-muted)' }}>
-          Upload images for German learning content analysis, optimization, or thumbnail generation.
+          Upload images for German learning content analysis using AI.
         </Text>
 
         <Stack direction="horizontal" gap="condensed">

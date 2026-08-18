@@ -1,6 +1,4 @@
 import { NextResponse } from 'next/server'
-import { analyzeWithGemini } from '@/lib/gemini'
-import sharp from 'sharp'
 
 export async function POST(request: Request) {
   try {
@@ -16,29 +14,6 @@ export async function POST(request: Request) {
 
     // Process image based on action
     switch (action) {
-      case 'optimize':
-        const optimized = await sharp(buffer)
-          .resize(1200, 1200, { fit: 'inside', withoutEnlargement: true })
-          .jpeg({ quality: 80, progressive: true })
-          .toBuffer()
-        return NextResponse.json({ 
-          success: true, 
-          size: optimized.length,
-          originalSize: buffer.length,
-          reduction: Math.round((1 - optimized.length / buffer.length) * 100)
-        })
-
-      case 'thumbnail':
-        const thumbnail = await sharp(buffer)
-          .resize(300, 300, { fit: 'cover' })
-          .jpeg({ quality: 70 })
-          .toBuffer()
-        return NextResponse.json({ 
-          success: true, 
-          size: thumbnail.length,
-          data: `data:image/jpeg;base64,${thumbnail.toString('base64')}`
-        })
-
       case 'analyze':
         // Use Gemini to analyze the image for German learning content
         const base64Image = `data:${image.type};base64,${buffer.toString('base64')}`
@@ -74,10 +49,9 @@ export async function POST(request: Request) {
         }
 
       default:
-        return NextResponse.json({ error: 'Invalid action. Use: optimize, thumbnail, or analyze' }, { status: 400 })
+        return NextResponse.json({ error: 'Invalid action. Use: analyze' }, { status: 400 })
     }
   } catch (error) {
-    console.error('Image processing error:', error)
     return NextResponse.json({ error: 'Image processing failed.' }, { status: 500 })
   }
 }
