@@ -67,27 +67,44 @@ export function Translator({ text, onTranslation }: TranslatorProps) {
         
         <FormControl>
           <FormControl.Label>German Text</FormControl.Label>
-          <TextInput
-            as="textarea"
+          <textarea
             rows={4}
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
             placeholder="Enter German text to translate..."
-            style={{ resize: 'vertical', minHeight: 100 }}
+            style={{ 
+              resize: 'vertical', 
+              minHeight: 100,
+              width: '100%',
+              padding: '8px 12px',
+              borderRadius: 6,
+              border: '1px solid var(--borderColor-default)',
+              background: 'var(--bgColor-default)',
+              color: 'var(--fgColor-default)',
+              fontSize: 14
+            }}
           />
         </FormControl>
         
         <Stack direction="horizontal" gap="normal">
           <FormControl style={{ flex: 1 }}>
             <FormControl.Label>Target Language</FormControl.Label>
-            <TextInput
-              as="select"
+            <select
               value={targetLanguage}
               onChange={(e) => setTargetLanguage(e.target.value as 'English' | 'Arabic')}
+              style={{
+                width: '100%',
+                padding: '8px 12px',
+                borderRadius: 6,
+                border: '1px solid var(--borderColor-default)',
+                background: 'var(--bgColor-default)',
+                color: 'var(--fgColor-default)',
+                fontSize: 14
+              }}
             >
               <option value="English">English</option>
               <option value="Arabic">Arabic</option>
-            </TextInput>
+            </select>
           </FormControl>
           
           <Button 
