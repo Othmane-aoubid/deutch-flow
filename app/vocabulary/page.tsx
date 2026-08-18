@@ -17,6 +17,7 @@ export default function VocabularyPage() {
   const [showResult, setShowResult] = useState(false)
   const [correct, setCorrect] = useState(false)
   const [practiceScore, setPracticeScore] = useState(0)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     loadVocabulary()
@@ -27,18 +28,26 @@ export default function VocabularyPage() {
     try {
       const auth = getAuth()
       const user = auth.currentUser
-      const headers: Record<string, string> = {}
-      if (user) {
-        const token = await user.getIdToken()
-        headers['Authorization'] = `Bearer ${token}`
+      if (!user) {
+        console.error('No authenticated user found')
+        setError('Please sign in to load vocabulary')
+        setLoading(false)
+        return
       }
+      const token = await user.getIdToken()
+      const headers: Record<string, string> = { 'Authorization': `Bearer ${token}` }
       const response = await fetch('/api/vocabulary', { headers })
       const data = await response.json()
+      if (!response.ok) {
+        setError(data.error || 'Failed to load vocabulary')
+        return
+      }
       if (data.vocabulary) {
         setVocabulary(data.vocabulary)
       }
     } catch (error) {
       console.error('Failed to load vocabulary:', error)
+      setError(error instanceof Error ? error.message : 'Failed to load vocabulary')
     } finally {
       setLoading(false)
     }
@@ -248,6 +257,8 @@ export default function VocabularyPage() {
 
           {loading ? (
             <Text>Loading vocabulary...</Text>
+          ) : error ? (
+            <Text style={{ color: 'var(--fgColor-danger)' }}>{error}</Text>
           ) : filteredVocabulary.length === 0 ? (
             <Text style={{ color: 'var(--fgColor-muted)' }}>No vocabulary found. Upload images to build your vocabulary!</Text>
           ) : (
