@@ -110,8 +110,62 @@ export function ImageProcessor({ onImageProcessed, maxImages = 5 }: ImageProcess
                 </Stack>
                 {result.analysis && (
                   <div style={{ marginTop: 12 }}>
-                    <Text size="small" style={{ color: 'var(--fgColor-muted)' }}>
-                      {result.analysis.germanText || 'Analysis complete'}
+                    {typeof result.analysis === 'string' ? (
+                      <div>
+                        <Text size="small" style={{ color: 'var(--fgColor-muted)', marginBottom: 8 }}>
+                          {result.fallback ? 'AI Analysis (Fallback):' : 'AI Analysis:'}
+                        </Text>
+                        <Text size="small" style={{ whiteSpace: 'pre-wrap' }}>
+                          {result.analysis}
+                        </Text>
+                      </div>
+                    ) : (
+                      <div>
+                        <Text size="small" style={{ color: 'var(--fgColor-muted)', marginBottom: 8 }}>
+                          German Text:
+                        </Text>
+                        <Text size="small">{result.analysis.germanText || 'No German text detected'}</Text>
+                        {result.analysis.translation && (
+                          <>
+                            <Text size="small" style={{ color: 'var(--fgColor-muted)', marginBottom: 8, marginTop: 8 }}>
+                              Translation:
+                            </Text>
+                            <Text size="small">{result.analysis.translation}</Text>
+                          </>
+                        )}
+                        {result.analysis.description && (
+                          <>
+                            <Text size="small" style={{ color: 'var(--fgColor-muted)', marginBottom: 8, marginTop: 8 }}>
+                              Description:
+                            </Text>
+                            <Text size="small">{result.analysis.description}</Text>
+                          </>
+                        )}
+                        {result.analysis.vocabulary && result.analysis.vocabulary.length > 0 && (
+                          <>
+                            <Text size="small" style={{ color: 'var(--fgColor-muted)', marginBottom: 8, marginTop: 8 }}>
+                              Vocabulary:
+                            </Text>
+                            {result.analysis.vocabulary.map((vocab: any, vIndex: number) => (
+                              <div key={vIndex} style={{ marginBottom: 4 }}>
+                                <Text size="small" weight="semibold">{vocab.word}</Text>
+                                <Text size="small"> - {vocab.translation}</Text>
+                                {vocab.context && <Text size="small" style={{ color: 'var(--fgColor-muted)' }}> ({vocab.context})</Text>}
+                              </div>
+                            ))}
+                          </>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+                {result.rawAnalysis && (
+                  <div style={{ marginTop: 12 }}>
+                    <Text size="small" style={{ color: 'var(--fgColor-muted)', marginBottom: 8 }}>
+                      Raw Analysis:
+                    </Text>
+                    <Text size="small" style={{ whiteSpace: 'pre-wrap' }}>
+                      {result.rawAnalysis}
                     </Text>
                   </div>
                 )}
