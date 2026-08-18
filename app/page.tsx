@@ -193,6 +193,7 @@ function TeacherMode({ recording, setRecording, lessonTitle, setLessonTitle, sta
 function LearnerMode({ onBack }: { onBack: () => void }) {
   const [lessons, setLessons] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [expandedLesson, setExpandedLesson] = useState<string | null>(null)
 
   useEffect(() => {
     fetch('/api/lessons')
@@ -212,6 +213,23 @@ function LearnerMode({ onBack }: { onBack: () => void }) {
         setLoading(false)
       })
   }, [])
+
+  const speakText = (text: string) => {
+    if (!window.speechSynthesis) return
+    const utterance = new SpeechSynthesisUtterance(text)
+    utterance.lang = 'de-DE'
+    utterance.rate = 0.8
+    window.speechSynthesis.speak(utterance)
+  }
+
+  const deleteLesson = async (lessonId: string) => {
+    try {
+      await fetch(`/api/lessons/${lessonId}`, { method: 'DELETE' })
+      setLessons(prev => prev.filter(l => l.id !== lessonId))
+    } catch (error) {
+      console.error('Failed to delete lesson')
+    }
+  }
 
   return (
     <main style={{ minHeight: '100vh' }}>
@@ -250,12 +268,43 @@ function LearnerMode({ onBack }: { onBack: () => void }) {
                         <Text size="small" style={{ color: 'var(--fgColor-muted)' }}>{lesson.level} · {lesson.duration} · {new Date(lesson.createdAt).toLocaleDateString()}</Text>
                       </Stack>
                     </Stack>
-                    <Label variant="success">Completed</Label>
+                    <Stack direction="horizontal" gap="condensed">
+                      <Button 
+                        variant="default" 
+                        size="small"
+                        onClick={() => setExpandedLesson(expandedLesson === lesson.id ? null : lesson.id)}
+                      >
+                        {expandedLesson === lesson.id ? 'Collapse' : 'Expand'}
+                      </Button>
+                      <Button 
+                        variant="danger" 
+                        size="small"
+                        onClick={() => deleteLesson(lesson.id)}
+                      >
+                        Delete
+                      </Button>
+                    </Stack>
                   </Stack>
-                  {lesson.transcript && (
-                    <div style={{ marginTop: 12, padding: 12, background: 'var(--bgColor-default)', borderRadius: 8 }}>
-                      <Text size="small" style={{ color: 'var(--fgColor-muted)', marginBottom: 8 }}>Transcript:</Text>
-                      <Text size="small">{lesson.transcript.slice(0, 200)}{lesson.transcript.length > 200 ? '...' : ''}</Text>
+                  {expandedLesson === lesson.id && lesson.transcript && (
+                    <div style={{ marginTop: 16, padding: 16, background: 'var(--bgColor-default)', borderRadius: 8 }}>
+                      <Stack direction="horizontal" justify="space-between" align="center" style={{ marginBottom: 8 }}>
+                        <Text size="small" style={{ color: 'var(--fgColor-muted)' }}>Transcript:</Text>
+                        <Button 
+                          variant="default" 
+                          size="small" 
+                          leadingVisual={<PlayIcon size={14} />}
+                          onClick={() => speakText(lesson.transcript)}
+                        >
+                          Listen
+                        </Button>
+                      </Stack>
+                      <Text size="small" style={{ lineHeight: 1.6 }}>{lesson.transcript}</Text>
+                      {lesson.analysis && (
+                        <div style={{ marginTop: 16, padding: 16, background: 'var(--bgColor-muted)', borderRadius: 8 }}>
+                          <Text size="small" style={{ color: 'var(--fgColor-muted)', marginBottom: 8 }}>AI Analysis:</Text>
+                          <Text size="small" style={{ whiteSpace: 'pre-wrap' }}>{typeof lesson.analysis === 'string' ? lesson.analysis : JSON.stringify(lesson.analysis, null, 2)}</Text>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
