@@ -1,8 +1,8 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Button, Heading, Label, Stack, Text } from '@primer/react'
-import { ArrowLeftIcon, CheckCircleIcon, XCircleIcon, PlayIcon, TrashIcon, SyncIcon } from '@primer/octicons-react'
+import { Button, Heading, Label, Stack, Text, FormControl, TextInput } from '@primer/react'
+import { ArrowLeftIcon, CheckCircleIcon, XCircleIcon, PlayIcon, TrashIcon, SyncIcon, ArrowRightIcon } from '@primer/octicons-react'
 import { useRouter } from 'next/navigation'
 
 export default function VocabularyPage() {
@@ -10,6 +10,12 @@ export default function VocabularyPage() {
   const [vocabulary, setVocabulary] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<'all' | 'learning' | 'mastered'>('all')
+  const [practiceMode, setPracticeMode] = useState(false)
+  const [currentIndex, setCurrentIndex] = useState(0)
+  const [userAnswer, setUserAnswer] = useState('')
+  const [showResult, setShowResult] = useState(false)
+  const [correct, setCorrect] = useState(false)
+  const [practiceScore, setPracticeScore] = useState(0)
 
   useEffect(() => {
     loadVocabulary()
@@ -59,6 +65,28 @@ export default function VocabularyPage() {
     }
   }
 
+  const startPractice = () => {
+    setPracticeMode(true)
+    setCurrentIndex(0)
+    setUserAnswer('')
+    setShowResult(false)
+    setPracticeScore(0)
+  }
+
+  const handlePracticeCheck = () => {
+    const currentWord = vocabulary[currentIndex]
+    const isCorrect = userAnswer.toLowerCase().trim() === currentWord.english.toLowerCase().trim()
+    setCorrect(isCorrect)
+    setShowResult(true)
+    if (isCorrect) setPracticeScore(prev => prev + 1)
+  }
+
+  const handlePracticeNext = () => {
+    setCurrentIndex(prev => prev + 1)
+    setUserAnswer('')
+    setShowResult(false)
+  }
+
   const filteredVocabulary = vocabulary.filter(v => {
     if (filter === 'all') return true
     if (filter === 'learning') return !v.learned
@@ -68,6 +96,71 @@ export default function VocabularyPage() {
 
   const learningCount = vocabulary.filter(v => !v.learned).length
   const masteredCount = vocabulary.filter(v => v.learned).length
+
+  if (practiceMode && filteredVocabulary.length > 0) {
+    const currentWord = filteredVocabulary[currentIndex % filteredVocabulary.length]
+    
+    return (
+      <main style={{ minHeight: '100vh' }}>
+        <div style={{ maxWidth: 1160, margin: '0 auto', padding: '40px 28px 80px' }}>
+          <Stack direction="vertical" gap="spacious">
+            <Stack direction="horizontal" justify="space-between" align="center">
+              <Stack direction="horizontal" gap="normal" align="center">
+                <Button onClick={() => setPracticeMode(false)} leadingVisual={ArrowLeftIcon}>
+                  Back to Vocabulary
+                </Button>
+                <Heading as="h1" variant="large">Practice Mode</Heading>
+              </Stack>
+              <Text size="small" style={{ color: 'var(--fgColor-muted)' }}>Score: {practiceScore}/{currentIndex + 1}</Text>
+            </Stack>
+
+            <Stack direction="vertical" gap="normal" style={{ padding: 32, background: 'var(--bgColor-default)', borderRadius: 12, border: 'var(--borderWidth-thin) solid var(--borderColor-default)' }}>
+              <Stack direction="horizontal" justify="space-between" align="center">
+                <Text size="small" style={{ color: 'var(--fgColor-muted)' }}>What does this German word mean?</Text>
+                <Button variant="default" size="small" onClick={() => speakWord(currentWord.german)}>🔊 Listen</Button>
+              </Stack>
+              <Heading as="h2" variant="large" style={{ fontSize: 40 }}>{currentWord.german}</Heading>
+              {currentWord.type && <Label variant="secondary">{currentWord.type}</Label>}
+              
+              <FormControl>
+                <FormControl.Label>Type the meaning in English:</FormControl.Label>
+                <TextInput
+                  value={userAnswer}
+                  onChange={(e) => setUserAnswer(e.target.value)}
+                  disabled={showResult}
+                  placeholder="Type the English meaning..."
+                  size="large"
+                />
+              </FormControl>
+
+              {showResult ? (
+                <Stack direction="horizontal" gap="normal" align="center">
+                  <Button variant="primary" onClick={handlePracticeNext} trailingVisual={ArrowRightIcon}>
+                    Next Word
+                  </Button>
+                  {correct ? (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--fgColor-success)' }}>
+                      <CheckCircleIcon />
+                      <Text>Correct!</Text>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--fgColor-danger)' }}>
+                      <XCircleIcon />
+                      <Text>Answer: {currentWord.english}</Text>
+                    </div>
+                  )}
+                </Stack>
+              ) : (
+                <Button variant="primary" onClick={handlePracticeCheck} disabled={!userAnswer.trim()}>
+                  Check Answer
+                </Button>
+              )}
+            </Stack>
+          </Stack>
+        </div>
+      </main>
+    )
+  }
 
   return (
     <main style={{ minHeight: '100vh' }}>
@@ -119,6 +212,15 @@ export default function VocabularyPage() {
             >
               Mastered ({masteredCount})
             </Button>
+            {filteredVocabulary.length > 0 && (
+              <Button 
+                variant="primary"
+                size="small"
+                onClick={startPractice}
+              >
+                Practice ({filteredVocabulary.length})
+              </Button>
+            )}
           </Stack>
 
           {loading ? (
