@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { Button, Stack, Text, Label, Heading } from '@primer/react'
 import { ImageIcon, UploadIcon, CheckCircleIcon, XCircleIcon, PlayIcon, TrashIcon } from '@primer/octicons-react'
 import { ExerciseMode } from './exercise-mode'
+import { useRouter } from 'next/navigation'
 
 interface ImageProcessorProps {
   onImageProcessed?: (result: any) => void
@@ -11,6 +12,7 @@ interface ImageProcessorProps {
 }
 
 export function ImageProcessor({ onImageProcessed, maxImages = 5 }: ImageProcessorProps) {
+  const router = useRouter()
   const [uploading, setUploading] = useState(false)
   const [results, setResults] = useState<any[]>([])
   const [error, setError] = useState<string | null>(null)
@@ -94,6 +96,11 @@ export function ImageProcessor({ onImageProcessed, maxImages = 5 }: ImageProcess
       if (onImageProcessed) {
         onImageProcessed(processedResults)
       }
+
+      // Redirect to dedicated page after successful upload
+      if (processedResults.length > 0) {
+        router.push('/image-analyses')
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to process images')
     } finally {
@@ -176,6 +183,12 @@ export function ImageProcessor({ onImageProcessed, maxImages = 5 }: ImageProcess
               {uploading ? 'Processing...' : 'Upload Images'}
             </Button>
           </label>
+          <Button 
+            variant="default"
+            onClick={() => router.push('/image-analyses')}
+          >
+            View All Analyses
+          </Button>
           {getAllVocabulary().length > 0 && (
             <Button 
               variant={showExercises ? 'primary' : 'default'}
