@@ -103,13 +103,11 @@ function TeacherMode({ recording, setRecording, lessonTitle, setLessonTitle, sta
             })
             if (!saveResponse.ok) {
               const errorData = await saveResponse.json()
-              console.error('Failed to save lesson:', errorData)
               setStatus(`Save failed: ${errorData.error || 'Unknown error'}`)
             }
           }
         } catch (error) {
           setStatus('Processing failed')
-          console.error(error)
         }
         
         stream.getTracks().forEach(track => track.stop())
@@ -200,9 +198,7 @@ function LearnerMode({ onBack }: { onBack: () => void }) {
     fetch('/api/lessons')
       .then(res => {
         if (!res.ok) {
-          console.error('Failed to fetch lessons:', res.status, res.statusText)
           return res.json().then(err => {
-            console.error('Error data:', err)
             throw new Error(err.error || 'Failed to fetch lessons')
           })
         }
@@ -212,8 +208,7 @@ function LearnerMode({ onBack }: { onBack: () => void }) {
         if (data.lessons) setLessons(data.lessons)
         setLoading(false)
       })
-      .catch(err => {
-        console.error('Error fetching lessons:', err)
+      .catch(() => {
         setLoading(false)
       })
   }, [])
