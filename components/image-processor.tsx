@@ -82,8 +82,15 @@ export function ImageProcessor({ onImageProcessed, maxImages = 5 }: ImageProcess
           }
         }
         
-        // Save analysis to Firestore
+        // Save analysis to Firestore only if there's meaningful content
         if (result.success && analysisToSave) {
+          const hasContent = analysisToSave.germanText || analysisToSave.description || (analysisToSave.vocabulary && analysisToSave.vocabulary.length > 0)
+          
+          if (!hasContent) {
+            console.log('No meaningful content to save, skipping Firestore save')
+            return result
+          }
+          
           try {
             if (!firebaseAuth) {
               console.error('Firebase not configured')
@@ -106,7 +113,7 @@ export function ImageProcessor({ onImageProcessed, maxImages = 5 }: ImageProcess
             console.log('Analysis save response:', analysisResponse.status)
             
             // Save vocabulary to Firestore
-            if (analysisToSave.vocabulary && Array.isArray(analysisToSave.vocabulary)) {
+            if (analysisToSave.vocabulary && Array.isArray(analysisToSave.vocabulary) && analysisToSave.vocabulary.length > 0) {
               console.log('Saving vocabulary items:', analysisToSave.vocabulary.length)
               for (const vocab of analysisToSave.vocabulary) {
                 const vocabResponse = await fetch('/api/vocabulary', {
