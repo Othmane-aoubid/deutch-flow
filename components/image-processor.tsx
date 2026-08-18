@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Button, Stack, Text, Label, Heading } from '@primer/react'
 import { ImageIcon, UploadIcon, CheckCircleIcon, XCircleIcon, PlayIcon, TrashIcon } from '@primer/octicons-react'
 import { ExerciseMode } from './exercise-mode'
@@ -15,6 +15,22 @@ export function ImageProcessor({ onImageProcessed, maxImages = 5 }: ImageProcess
   const [results, setResults] = useState<any[]>([])
   const [error, setError] = useState<string | null>(null)
   const [showExercises, setShowExercises] = useState(false)
+
+  useEffect(() => {
+    loadSavedAnalyses()
+  }, [])
+
+  const loadSavedAnalyses = async () => {
+    try {
+      const response = await fetch('/api/image-analysis')
+      const data = await response.json()
+      if (data.analyses) {
+        setResults(data.analyses.map((analysis: any) => ({ success: true, analysis })))
+      }
+    } catch (error) {
+      console.error('Failed to load saved analyses:', error)
+    }
+  }
 
   const handleImageUpload = async (files: FileList | null) => {
     if (!files || files.length === 0) return
@@ -91,6 +107,18 @@ export function ImageProcessor({ onImageProcessed, maxImages = 5 }: ImageProcess
     utterance.lang = 'de-DE'
     utterance.rate = 0.8
     window.speechSynthesis.speak(utterance)
+  }
+
+  const saveAnalysis = async (analysis: any) => {
+    try {
+      await fetch('/api/image-analysis', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(analysis)
+      })
+    } catch (error) {
+      console.error('Failed to save analysis:', error)
+    }
   }
 
   const deleteResult = (index: number) => {
@@ -193,14 +221,23 @@ export function ImageProcessor({ onImageProcessed, maxImages = 5 }: ImageProcess
                             <Label variant="secondary">{analysis.learningLevel}</Label>
                           )}
                         </Stack>
-                        <Button 
-                          variant="danger" 
-                          size="small" 
-                          leadingVisual={TrashIcon}
-                          onClick={() => deleteResult(index)}
-                        >
-                          Delete
-                        </Button>
+                        <Stack direction="horizontal" gap="condensed">
+                          <Button 
+                            variant="default" 
+                            size="small"
+                            onClick={() => saveAnalysis(analysis)}
+                          >
+                            Save
+                          </Button>
+                          <Button 
+                            variant="danger" 
+                            size="small" 
+                            leadingVisual={TrashIcon}
+                            onClick={() => deleteResult(index)}
+                          >
+                            Delete
+                          </Button>
+                        </Stack>
                       </Stack>
 
                       {analysis.germanText && (
