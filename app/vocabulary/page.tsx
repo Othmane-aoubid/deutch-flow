@@ -25,6 +25,7 @@ export default function VocabularyPage() {
 
   const loadVocabulary = async () => {
     setLoading(true)
+    setError(null)
     try {
       if (!firebaseAuth) {
         setError('Firebase not configured')
@@ -41,13 +42,20 @@ export default function VocabularyPage() {
       const token = await user.getIdToken()
       const headers: Record<string, string> = { 'Authorization': `Bearer ${token}` }
       const response = await fetch('/api/vocabulary', { headers })
-      const data = await response.json()
+      
       if (!response.ok) {
-        setError(data.error || 'Failed to load vocabulary')
+        const text = await response.text()
+        console.error('API error response:', text)
+        setError(`Failed to load vocabulary: ${response.status} ${response.statusText}`)
+        setLoading(false)
         return
       }
+      
+      const data = await response.json()
       if (data.vocabulary) {
         setVocabulary(data.vocabulary)
+      } else {
+        setVocabulary([])
       }
     } catch (error) {
       console.error('Failed to load vocabulary:', error)

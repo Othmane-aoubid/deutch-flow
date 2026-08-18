@@ -32,15 +32,23 @@ export default function ImageAnalysesPage() {
       const token = await user.getIdToken()
       const headers: Record<string, string> = { 'Authorization': `Bearer ${token}` }
       const response = await fetch('/api/image-analysis', { headers })
-      const data = await response.json()
+      
       if (!response.ok) {
-        setError(data.error || data.details || 'Failed to load analyses')
+        const text = await response.text()
+        console.error('API error response:', text)
+        setError(`Failed to load analyses: ${response.status} ${response.statusText}`)
+        setLoading(false)
         return
       }
+      
+      const data = await response.json()
       if (data.analyses) {
         setAnalyses(data.analyses)
+      } else {
+        setAnalyses([])
       }
     } catch (err) {
+      console.error('Failed to load analyses:', err)
       setError(err instanceof Error ? err.message : 'Failed to load analyses')
     } finally {
       setLoading(false)
