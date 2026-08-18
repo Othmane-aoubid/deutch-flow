@@ -4,21 +4,31 @@ import { adminDb, firebaseAdminConfigured, verifyFirebaseToken } from '@/lib/fir
 export async function GET(request: Request) {
   try {
     if (!firebaseAdminConfigured || !adminDb) {
-      console.error('Firebase Admin not configured. Check environment variables: FIREBASE_SERVICE_ACCOUNT_JSON or FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY, FIREBASE_PROJECT_ID')
-      return NextResponse.json({ error: 'Firebase Admin is not configured. Please set up Firebase Admin environment variables.' }, { status: 503 })
+      return NextResponse.json({ 
+        error: 'Firebase Admin is not configured', 
+        details: 'Check environment variables: FIREBASE_SERVICE_ACCOUNT_JSON or FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY, FIREBASE_PROJECT_ID',
+        configured: firebaseAdminConfigured,
+        hasDb: !!adminDb
+      }, { status: 503 })
     }
     
     const user = await verifyFirebaseToken(request)
     if (!user) {
-      console.error('User authentication failed')
-      return NextResponse.json({ error: 'Sign-in required.' }, { status: 401 })
+      return NextResponse.json({ 
+        error: 'Sign-in required',
+        details: 'Authentication failed'
+      }, { status: 401 })
     }
 
     const snapshot = await adminDb.collection('vocabulary').where('userId', '==', user.uid).orderBy('createdAt', 'desc').get()
     return NextResponse.json({ vocabulary: snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })) })
   } catch (error) {
     console.error('Error loading vocabulary:', error)
-    return NextResponse.json({ error: 'Failed to load vocabulary', vocabulary: [] }, { status: 500 })
+    return NextResponse.json({ 
+      error: 'Failed to load vocabulary', 
+      details: error instanceof Error ? error.message : String(error),
+      vocabulary: [] 
+    }, { status: 500 })
   }
 }
 
