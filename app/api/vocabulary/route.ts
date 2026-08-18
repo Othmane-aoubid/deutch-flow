@@ -3,9 +3,16 @@ import { adminDb, firebaseAdminConfigured, verifyFirebaseToken } from '@/lib/fir
 
 export async function GET(request: Request) {
   try {
+    if (!firebaseAdminConfigured || !adminDb) {
+      console.error('Firebase Admin not configured. Check environment variables: FIREBASE_SERVICE_ACCOUNT_JSON or FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY, FIREBASE_PROJECT_ID')
+      return NextResponse.json({ error: 'Firebase Admin is not configured. Please set up Firebase Admin environment variables.' }, { status: 503 })
+    }
+    
     const user = await verifyFirebaseToken(request)
-    if (!firebaseAdminConfigured || !adminDb) return NextResponse.json({ error: 'Firebase Admin is not configured.' }, { status: 503 })
-    if (!user) return NextResponse.json({ error: 'Sign-in required.' }, { status: 401 })
+    if (!user) {
+      console.error('User authentication failed')
+      return NextResponse.json({ error: 'Sign-in required.' }, { status: 401 })
+    }
 
     const snapshot = await adminDb.collection('vocabulary').where('userId', '==', user.uid).orderBy('createdAt', 'desc').get()
     return NextResponse.json({ vocabulary: snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })) })
