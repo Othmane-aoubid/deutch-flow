@@ -15,17 +15,19 @@ export async function POST(request: Request) {
     // Process image based on action
     switch (action) {
       case 'analyze':
-        const base64Image = `data:${image.type};base64,${buffer.toString('base64')}`
-        
-        const genAI = require('@google/generative-ai')
-        const apiKey = process.env.GEMINI_API_KEY
-        if (!apiKey) {
-          return NextResponse.json({ error: 'Gemini API is not configured.' }, { status: 503 })
-        }
+        // Try Gemini first for image analysis
+        try {
+          const base64Image = `data:${image.type};base64,${buffer.toString('base64')}`
+          
+          const genAI = require('@google/generative-ai')
+          const apiKey = process.env.GEMINI_API_KEY
+          if (!apiKey) {
+            throw new Error('Gemini API key not configured')
+          }
 
-        const model = new genAI.GoogleGenerativeAI(apiKey).getGenerativeModel({ model: 'gemini-1.5-flash' })
-        
-        const prompt = `Analyze this image for German language learning. If there's German text, extract it and provide translations. Describe the scene in German and suggest vocabulary words that could be learned from this image. Return the response in JSON format with these fields:
+          const model = new genAI.GoogleGenerativeAI(apiKey).getGenerativeModel({ model: 'gemini-1.5-flash' })
+          
+          const prompt = `Analyze this image for German language learning. If there's German text, extract it and provide translations. Describe the scene in German and suggest vocabulary words that could be learned from this image. Return the response in JSON format with these fields:
 {
   "germanText": "any German text found in the image",
   "translation": "English translation of the text",
@@ -36,15 +38,65 @@ export async function POST(request: Request) {
   "learningLevel": "CEFR level this content is suitable for"
 }`
 
-        const result = await model.generateContent([prompt, base64Image])
-        const response = await result.response
-        const text = response.text()
-        
-        try {
-          const analysis = JSON.parse(text)
-          return NextResponse.json({ success: true, analysis })
-        } catch {
-          return NextResponse.json({ success: true, rawAnalysis: text })
+          const result = await model.generateContent([prompt, base64Image])
+          const response = await result.response
+          const text = response.text()
+          
+          try {
+            const analysis = JSON.parse(text)
+            return NextResponse.json({ success: true, analysis })
+          } catch {
+            return NextResponse.json({ success: true, rawAnalysis: text })
+          }
+        } catch (geminiError) {
+          // Fallback to NVIDIA LLM (note: NVIDIA doesn't support image vision, so this will provide generic German learning content)
+          const baseUrl = process.env.NVIDIA_BASE_URL
+          const apiKey = process.env.NVIDIA_API_KEY
+          const fallbackApiKey = process.env.NVIDIA_API_KEY_FALLBACK
+          
+          if (!baseUrl || !apiKey) {
+            return NextResponse.json({ error: 'Both Gemini and NVIDIA APIs are not configured.' }, { status: 503 })
+          }
+
+          const model = process.env.NVIDIA_LLM_MODEL ?? 'meta/muse-glimmer-30b'
+          const fallbackModel = process.env.NVIDIA_LLM_MODEL_FALLBACK ?? 'nvidia/nemotron-3-ultra-550b-a55b'
+          
+          try {
+            const upstream = await fetch(`${baseUrl}/chat/completions`, { 
+              method: 'POST', 
+              headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' }, 
+              body: JSON.stringify({ 
+                model: model, 
+                messages: [{ role: 'system', content: 'You are a German language tutor. Provide German vocabulary and learning suggestions. Return JSON with germanText, translation, description, vocabulary array, and learningLevel.' }, { role: 'user', content: 'Provide German learning content for a general lesson.' }], 
+                temperature: 0.2 
+              }) 
+            })
+            
+            if (upstream.ok) {
+              const result = await upstream.json()
+              return NextResponse.json({ success: true, analysis: result.choices?.[0]?.message?.content, fallback: true })
+            }
+            
+            // Try fallback API
+            if (fallbackApiKey) {
+              const fallbackUpstream = await fetch(`${baseUrl}/chat/completions`, { 
+                method: 'POST', 
+                headers: { Authorization: `Bearer ${fallbackApiKey}`, 'Content-Type': 'application/json' }, 
+                body: JSON.stringify({ 
+                  model: fallbackModel, 
+                  messages: [{ role: 'system', content: 'You are a German language tutor. Provide German vocabulary and learning suggestions. Return JSON with germanText, translation, description, vocabulary array, and learningLevel.' }, { role: 'user', content: 'Provide German learning content for a general lesson.' }], 
+                  temperature: 0.2 
+                }) 
+              })
+              
+              if (fallbackUpstream.ok) {
+                const result = await fallbackUpstream.json()
+                return NextResponse.json({ success: true, analysis: result.choices?.[0]?.message?.content, fallback: true })
+              }
+            }
+          } catch (nvidiaError) {
+            return NextResponse.json({ error: 'Image analysis failed - both Gemini and NVIDIA APIs unavailable.' }, { status: 500 })
+          }
         }
 
       default:
