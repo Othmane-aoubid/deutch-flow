@@ -32,7 +32,8 @@ export function ImageProcessor({ onImageProcessed, maxImages = 5 }: ImageProcess
         })
 
         if (!response.ok) {
-          throw new Error(`Failed to process ${file.name}`)
+          const errorData = await response.json()
+          throw new Error(errorData.details || errorData.error || `Failed to process ${file.name}`)
         }
 
         return await response.json()
