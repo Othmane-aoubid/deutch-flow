@@ -76,6 +76,13 @@ function TeacherMode({ recording, setRecording, lessonTitle, setLessonTitle, sta
         setAudioChunks(chunks)
         const audioBlob = new Blob(chunks, { type: 'audio/webm' })
         
+        // Convert audio to base64 for storage
+        const audioBase64 = await new Promise<string>((resolve) => {
+          const reader = new FileReader()
+          reader.onloadend = () => resolve(reader.result as string)
+          reader.readAsDataURL(audioBlob)
+        })
+        
         setStatus('Processing audio...')
         const formData = new FormData()
         formData.append('audio', audioBlob)
@@ -98,11 +105,18 @@ function TeacherMode({ recording, setRecording, lessonTitle, setLessonTitle, sta
             setAnalysis(analyzeResult)
             setStatus('Analysis complete')
             
-            // Save lesson to Firestore
+            // Save lesson to Firestore with audio
             const saveResponse = await fetch('/api/lessons', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ title: lessonTitle, transcript: fullTranscript, analysis: analyzeResult, level: 'A2', duration: '00:00' })
+              body: JSON.stringify({ 
+                title: lessonTitle, 
+                transcript: fullTranscript, 
+                analysis: analyzeResult, 
+                level: 'A2', 
+                duration: '00:00',
+                audio: audioBase64
+              })
             })
             if (!saveResponse.ok) {
               const errorData = await saveResponse.json()
@@ -292,14 +306,29 @@ function LearnerMode({ onBack }: { onBack: () => void }) {
                     <div style={{ marginTop: 16, padding: 16, background: 'var(--bgColor-default)', borderRadius: 8 }}>
                       <Stack direction="horizontal" justify="space-between" align="center" style={{ marginBottom: 8 }}>
                         <Text size="small" style={{ color: 'var(--fgColor-muted)' }}>Transcript:</Text>
-                        <Button 
-                          variant="default" 
-                          size="small" 
-                          leadingVisual={<PlayIcon size={14} />}
-                          onClick={() => speakText(lesson.transcript)}
-                        >
-                          Listen
-                        </Button>
+                        <Stack direction="horizontal" gap="condensed">
+                          {lesson.audio && (
+                            <Button 
+                              variant="default" 
+                              size="small" 
+                              leadingVisual={<PlayIcon size={14} />}
+                              onClick={() => {
+                                const audio = new Audio(lesson.audio)
+                                audio.play()
+                              }}
+                            >
+                              Play Recording
+                            </Button>
+                          )}
+                          <Button 
+                            variant="default" 
+                            size="small" 
+                            leadingVisual={<PlayIcon size={14} />}
+                            onClick={() => speakText(lesson.transcript)}
+                          >
+                            Listen
+                          </Button>
+                        </Stack>
                       </Stack>
                       <Text size="small" style={{ lineHeight: 1.6 }}>{lesson.transcript}</Text>
                       {lesson.analysis && (

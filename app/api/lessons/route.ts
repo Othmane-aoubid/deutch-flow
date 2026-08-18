@@ -24,6 +24,7 @@ export async function POST(request: Request) {
     duration: typeof body.duration === 'string' ? body.duration : '00:00',
     score: typeof body.score === 'number' ? body.score : 0,
     images: Array.isArray(body.images) ? body.images.slice(0, 10) : [],
+    audio: typeof body.audio === 'string' ? body.audio.slice(0, 10000000) : null,
     userId: user.uid,
     createdAt: new Date().toISOString(),
   }
