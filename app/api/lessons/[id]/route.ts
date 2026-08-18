@@ -3,7 +3,7 @@ import { adminDb, firebaseAdminConfigured, verifyFirebaseToken } from '@/lib/fir
 
 export async function DELETE(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const user = await verifyFirebaseToken(request)
   if (!firebaseAdminConfigured || !adminDb) {
@@ -14,7 +14,8 @@ export async function DELETE(
   }
 
   try {
-    const lessonRef = adminDb.collection('lessons').doc(params.id)
+    const { id } = await params
+    const lessonRef = adminDb.collection('lessons').doc(id)
     const lesson = await lessonRef.get()
     
     if (!lesson.exists) {

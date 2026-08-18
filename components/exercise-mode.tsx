@@ -27,7 +27,7 @@ export function ExerciseMode({ vocabulary = [], onBack }: ExerciseModeProps) {
     )
   }
 
-  const currentWord = vocabulary[current % vocabulary.length]
+  const currentWord = vocabulary[currentIndex % vocabulary.length]
   const germanWord = currentWord.german || currentWord.word
   const englishWord = currentWord.english || currentWord.translation
 
