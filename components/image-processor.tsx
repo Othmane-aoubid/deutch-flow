@@ -66,9 +66,21 @@ export function ImageProcessor({ onImageProcessed, maxImages = 5 }: ImageProcess
         // Save analysis to Firestore
         if (result.success && result.analysis) {
           try {
+            if (!firebaseAuth) {
+              console.error('Firebase not configured')
+              return result
+            }
+            const user = firebaseAuth.currentUser
+            if (!user) {
+              console.error('No authenticated user')
+              return result
+            }
+            const token = await user.getIdToken()
+            const headers: Record<string, string> = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }
+            
             await fetch('/api/image-analysis', {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
+              headers,
               body: JSON.stringify(result.analysis)
             })
             
@@ -77,7 +89,7 @@ export function ImageProcessor({ onImageProcessed, maxImages = 5 }: ImageProcess
               for (const vocab of result.analysis.vocabulary) {
                 await fetch('/api/vocabulary', {
                   method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
+                  headers,
                   body: JSON.stringify({
                     german: vocab.german || vocab.word,
                     english: vocab.english || vocab.translation,
