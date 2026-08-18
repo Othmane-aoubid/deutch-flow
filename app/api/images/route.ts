@@ -47,13 +47,20 @@ export async function POST(request: Request) {
           try {
             const analysis = JSON.parse(text)
             console.log('Parsed analysis:', analysis)
+            
+            // Check if analysis has meaningful content
+            if (!analysis.germanText && !analysis.description && (!analysis.vocabulary || analysis.vocabulary.length === 0)) {
+              console.log('Gemini returned empty results, using NVIDIA fallback')
+              throw new Error('Empty results from Gemini')
+            }
+            
             return NextResponse.json({ success: true, analysis })
           } catch (parseError) {
-            console.error('Failed to parse Gemini response as JSON:', parseError)
-            return NextResponse.json({ success: true, rawAnalysis: text })
+            console.error('Failed to parse Gemini response as JSON or empty results:', parseError)
+            throw new Error('Gemini parsing failed or returned empty results')
           }
         } catch (geminiError) {
-          console.error('Gemini API error:', geminiError)
+          console.error('Gemini API error or empty results, using NVIDIA fallback:', geminiError)
           // Fallback to NVIDIA LLM (note: NVIDIA doesn't support image vision, so this will provide generic German learning content)
           const baseUrl = process.env.NVIDIA_BASE_URL
           const apiKey = process.env.NVIDIA_API_KEY
