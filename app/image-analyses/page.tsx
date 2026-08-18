@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { Button, Heading, Label, Stack, Text } from '@primer/react'
 import { ArrowLeftIcon, CheckCircleIcon, PlayIcon, TrashIcon } from '@primer/octicons-react'
 import { useRouter } from 'next/navigation'
+import { getAuth } from 'firebase/auth'
 
 export default function ImageAnalysesPage() {
   const router = useRouter()
@@ -17,7 +18,14 @@ export default function ImageAnalysesPage() {
 
   const loadAnalyses = async () => {
     try {
-      const response = await fetch('/api/image-analysis')
+      const auth = getAuth()
+      const user = auth.currentUser
+      const headers: Record<string, string> = {}
+      if (user) {
+        const token = await user.getIdToken()
+        headers['Authorization'] = `Bearer ${token}`
+      }
+      const response = await fetch('/api/image-analysis', { headers })
       const data = await response.json()
       if (data.analyses) {
         setAnalyses(data.analyses)
@@ -39,7 +47,14 @@ export default function ImageAnalysesPage() {
 
   const deleteAnalysis = async (id: string) => {
     try {
-      await fetch(`/api/image-analysis/${id}`, { method: 'DELETE' })
+      const auth = getAuth()
+      const user = auth.currentUser
+      const headers: Record<string, string> = {}
+      if (user) {
+        const token = await user.getIdToken()
+        headers['Authorization'] = `Bearer ${token}`
+      }
+      await fetch(`/api/image-analysis/${id}`, { method: 'DELETE', headers })
       loadAnalyses()
     } catch (err) {
       console.error('Failed to delete')

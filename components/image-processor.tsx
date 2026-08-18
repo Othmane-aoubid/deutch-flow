@@ -5,6 +5,7 @@ import { Button, Stack, Text, Label, Heading } from '@primer/react'
 import { ImageIcon, UploadIcon, CheckCircleIcon, XCircleIcon, PlayIcon, TrashIcon } from '@primer/octicons-react'
 import { ExerciseMode } from './exercise-mode'
 import { useRouter } from 'next/navigation'
+import { getAuth } from 'firebase/auth'
 
 interface ImageProcessorProps {
   onImageProcessed?: (result: any) => void
@@ -24,7 +25,14 @@ export function ImageProcessor({ onImageProcessed, maxImages = 5 }: ImageProcess
 
   const loadSavedAnalyses = async () => {
     try {
-      const response = await fetch('/api/image-analysis')
+      const auth = getAuth()
+      const user = auth.currentUser
+      const headers: Record<string, string> = {}
+      if (user) {
+        const token = await user.getIdToken()
+        headers['Authorization'] = `Bearer ${token}`
+      }
+      const response = await fetch('/api/image-analysis', { headers })
       const data = await response.json()
       if (data.analyses) {
         setResults(data.analyses.map((analysis: any) => ({ success: true, analysis })))
@@ -118,9 +126,16 @@ export function ImageProcessor({ onImageProcessed, maxImages = 5 }: ImageProcess
 
   const saveAnalysis = async (analysis: any) => {
     try {
+      const auth = getAuth()
+      const user = auth.currentUser
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+      if (user) {
+        const token = await user.getIdToken()
+        headers['Authorization'] = `Bearer ${token}`
+      }
       await fetch('/api/image-analysis', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify(analysis)
       })
     } catch (error) {
