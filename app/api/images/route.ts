@@ -42,13 +42,18 @@ export async function POST(request: Request) {
           const response = await result.response
           const text = response.text()
           
+          console.log('Gemini response text:', text)
+          
           try {
             const analysis = JSON.parse(text)
+            console.log('Parsed analysis:', analysis)
             return NextResponse.json({ success: true, analysis })
-          } catch {
+          } catch (parseError) {
+            console.error('Failed to parse Gemini response as JSON:', parseError)
             return NextResponse.json({ success: true, rawAnalysis: text })
           }
         } catch (geminiError) {
+          console.error('Gemini API error:', geminiError)
           // Fallback to NVIDIA LLM (note: NVIDIA doesn't support image vision, so this will provide generic German learning content)
           const baseUrl = process.env.NVIDIA_BASE_URL
           const apiKey = process.env.NVIDIA_API_KEY

@@ -62,9 +62,28 @@ export function ImageProcessor({ onImageProcessed, maxImages = 5 }: ImageProcess
         }
 
         const result = await response.json()
+        console.log('API result:', result)
+        
+        // Handle both rawAnalysis and analysis responses
+        let analysisToSave = result.analysis
+        if (result.rawAnalysis) {
+          try {
+            analysisToSave = JSON.parse(result.rawAnalysis)
+          } catch {
+            console.error('Failed to parse rawAnalysis')
+            analysisToSave = {
+              germanText: result.rawAnalysis,
+              translation: '',
+              description: '',
+              vocabulary: [],
+              learningLevel: null,
+              fallback: true
+            }
+          }
+        }
         
         // Save analysis to Firestore
-        if (result.success && result.analysis) {
+        if (result.success && analysisToSave) {
           try {
             if (!firebaseAuth) {
               console.error('Firebase not configured')
@@ -82,14 +101,14 @@ export function ImageProcessor({ onImageProcessed, maxImages = 5 }: ImageProcess
             const analysisResponse = await fetch('/api/image-analysis', {
               method: 'POST',
               headers,
-              body: JSON.stringify(result.analysis)
+              body: JSON.stringify(analysisToSave)
             })
             console.log('Analysis save response:', analysisResponse.status)
             
             // Save vocabulary to Firestore
-            if (result.analysis.vocabulary && Array.isArray(result.analysis.vocabulary)) {
-              console.log('Saving vocabulary items:', result.analysis.vocabulary.length)
-              for (const vocab of result.analysis.vocabulary) {
+            if (analysisToSave.vocabulary && Array.isArray(analysisToSave.vocabulary)) {
+              console.log('Saving vocabulary items:', analysisToSave.vocabulary.length)
+              for (const vocab of analysisToSave.vocabulary) {
                 const vocabResponse = await fetch('/api/vocabulary', {
                   method: 'POST',
                   headers,
