@@ -96,11 +96,16 @@ function TeacherMode({ recording, setRecording, lessonTitle, setLessonTitle, sta
             setStatus('Analysis complete')
             
             // Save lesson to Firestore
-            await fetch('/api/lessons', {
+            const saveResponse = await fetch('/api/lessons', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ title: lessonTitle, transcript: fullTranscript, analysis: analyzeResult, level: 'A2', duration: '00:00' })
             })
+            if (!saveResponse.ok) {
+              const errorData = await saveResponse.json()
+              console.error('Failed to save lesson:', errorData)
+              setStatus(`Save failed: ${errorData.error || 'Unknown error'}`)
+            }
           }
         } catch (error) {
           setStatus('Processing failed')
@@ -193,12 +198,24 @@ function LearnerMode({ onBack }: { onBack: () => void }) {
 
   useEffect(() => {
     fetch('/api/lessons')
-      .then(res => res.json())
+      .then(res => {
+        if (!res.ok) {
+          console.error('Failed to fetch lessons:', res.status, res.statusText)
+          return res.json().then(err => {
+            console.error('Error data:', err)
+            throw new Error(err.error || 'Failed to fetch lessons')
+          })
+        }
+        return res.json()
+      })
       .then(data => {
         if (data.lessons) setLessons(data.lessons)
         setLoading(false)
       })
-      .catch(() => setLoading(false))
+      .catch(err => {
+        console.error('Error fetching lessons:', err)
+        setLoading(false)
+      })
   }, [])
 
   return (
