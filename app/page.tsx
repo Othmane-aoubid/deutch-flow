@@ -7,6 +7,7 @@ import { AuthGate, SignOutButton } from '@/components/auth-gate'
 import { ImageProcessor } from '@/components/image-processor'
 import { Translator } from '@/components/translator'
 import { useRouter } from 'next/navigation'
+import { getAuth } from 'firebase/auth'
 
 export default function Page() {
   return <AuthGate><PageContent /></AuthGate>
@@ -214,22 +215,29 @@ function LearnerMode({ onBack }: { onBack: () => void }) {
   const [expandedLesson, setExpandedLesson] = useState<string | null>(null)
 
   useEffect(() => {
-    fetch('/api/lessons')
-      .then(res => {
-        if (!res.ok) {
-          return res.json().then(err => {
-            throw new Error(err.error || 'Failed to fetch lessons')
-          })
+    const loadLessons = async () => {
+      try {
+        const auth = getAuth()
+        const user = auth.currentUser
+        const headers: Record<string, string> = {}
+        if (user) {
+          const token = await user.getIdToken()
+          headers['Authorization'] = `Bearer ${token}`
         }
-        return res.json()
-      })
-      .then(data => {
+        const res = await fetch('/api/lessons', { headers })
+        if (!res.ok) {
+          const err = await res.json()
+          throw new Error(err.error || 'Failed to fetch lessons')
+        }
+        const data = await res.json()
         if (data.lessons) setLessons(data.lessons)
+      } catch (error) {
+        console.error('Failed to load lessons:', error)
+      } finally {
         setLoading(false)
-      })
-      .catch(() => {
-        setLoading(false)
-      })
+      }
+    }
+    loadLessons()
   }, [])
 
   const speakText = (text: string) => {
@@ -242,7 +250,14 @@ function LearnerMode({ onBack }: { onBack: () => void }) {
 
   const deleteLesson = async (lessonId: string) => {
     try {
-      await fetch(`/api/lessons/${lessonId}`, { method: 'DELETE' })
+      const auth = getAuth()
+      const user = auth.currentUser
+      const headers: Record<string, string> = {}
+      if (user) {
+        const token = await user.getIdToken()
+        headers['Authorization'] = `Bearer ${token}`
+      }
+      await fetch(`/api/lessons/${lessonId}`, { method: 'DELETE', headers })
       setLessons(prev => prev.filter(l => l.id !== lessonId))
     } catch (error) {
       console.error('Failed to delete lesson')

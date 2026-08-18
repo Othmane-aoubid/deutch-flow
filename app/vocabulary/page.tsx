@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { Button, Heading, Label, Stack, Text, FormControl, TextInput } from '@primer/react'
 import { ArrowLeftIcon, CheckCircleIcon, XCircleIcon, PlayIcon, TrashIcon, SyncIcon, ArrowRightIcon } from '@primer/octicons-react'
 import { useRouter } from 'next/navigation'
+import { getAuth } from 'firebase/auth'
 
 export default function VocabularyPage() {
   const router = useRouter()
@@ -22,8 +23,16 @@ export default function VocabularyPage() {
   }, [])
 
   const loadVocabulary = async () => {
+    setLoading(true)
     try {
-      const response = await fetch('/api/vocabulary')
+      const auth = getAuth()
+      const user = auth.currentUser
+      const headers: Record<string, string> = {}
+      if (user) {
+        const token = await user.getIdToken()
+        headers['Authorization'] = `Bearer ${token}`
+      }
+      const response = await fetch('/api/vocabulary', { headers })
       const data = await response.json()
       if (data.vocabulary) {
         setVocabulary(data.vocabulary)
@@ -45,9 +54,16 @@ export default function VocabularyPage() {
 
   const markAsLearned = async (id: string, learned: boolean) => {
     try {
+      const auth = getAuth()
+      const user = auth.currentUser
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+      if (user) {
+        const token = await user.getIdToken()
+        headers['Authorization'] = `Bearer ${token}`
+      }
       await fetch(`/api/vocabulary/${id}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({ learned })
       })
       loadVocabulary()
@@ -58,7 +74,14 @@ export default function VocabularyPage() {
 
   const deleteVocabulary = async (id: string) => {
     try {
-      await fetch(`/api/vocabulary/${id}`, { method: 'DELETE' })
+      const auth = getAuth()
+      const user = auth.currentUser
+      const headers: Record<string, string> = {}
+      if (user) {
+        const token = await user.getIdToken()
+        headers['Authorization'] = `Bearer ${token}`
+      }
+      await fetch(`/api/vocabulary/${id}`, { method: 'DELETE', headers })
       loadVocabulary()
     } catch (error) {
       console.error('Failed to delete vocabulary:', error)

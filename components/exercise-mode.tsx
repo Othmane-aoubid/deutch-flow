@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { Button, FormControl, Heading, Label, Stack, Text, TextInput } from '@primer/react'
 import { CheckCircleIcon, XCircleIcon, ArrowRightIcon } from '@primer/octicons-react'
+import { getAuth } from 'firebase/auth'
 
 interface ExerciseModeProps {
   vocabulary?: any[]
@@ -32,7 +33,14 @@ export function ExerciseMode({ vocabulary: propVocabulary = [], onBack }: Exerci
   const loadVocabulary = async () => {
     setLoading(true)
     try {
-      const response = await fetch('/api/vocabulary')
+      const auth = getAuth()
+      const user = auth.currentUser
+      const headers: Record<string, string> = {}
+      if (user) {
+        const token = await user.getIdToken()
+        headers['Authorization'] = `Bearer ${token}`
+      }
+      const response = await fetch('/api/vocabulary', { headers })
       const data = await response.json()
       if (data.vocabulary) {
         setVocabulary(data.vocabulary)
@@ -46,7 +54,14 @@ export function ExerciseMode({ vocabulary: propVocabulary = [], onBack }: Exerci
 
   const loadProgress = async () => {
     try {
-      const response = await fetch('/api/exercise-progress')
+      const auth = getAuth()
+      const user = auth.currentUser
+      const headers: Record<string, string> = {}
+      if (user) {
+        const token = await user.getIdToken()
+        headers['Authorization'] = `Bearer ${token}`
+      }
+      const response = await fetch('/api/exercise-progress', { headers })
       const data = await response.json()
       if (data.score !== undefined) {
         setScore(data.score)
@@ -59,9 +74,16 @@ export function ExerciseMode({ vocabulary: propVocabulary = [], onBack }: Exerci
 
   const saveProgress = async (newScore: number, newTotal: number, newCorrect: number) => {
     try {
+      const auth = getAuth()
+      const user = auth.currentUser
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+      if (user) {
+        const token = await user.getIdToken()
+        headers['Authorization'] = `Bearer ${token}`
+      }
       await fetch('/api/exercise-progress', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({ score: newScore, total: newTotal, correct: newCorrect })
       })
     } catch (error) {
