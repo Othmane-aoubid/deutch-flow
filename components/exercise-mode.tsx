@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Button, FormControl, Heading, Label, Stack, Text, TextInput } from '@primer/react'
 import { CheckCircleIcon, XCircleIcon, ArrowRightIcon } from '@primer/octicons-react'
 
@@ -9,13 +9,73 @@ interface ExerciseModeProps {
   onBack?: () => void
 }
 
-export function ExerciseMode({ vocabulary = [], onBack }: ExerciseModeProps) {
+export function ExerciseMode({ vocabulary: propVocabulary = [], onBack }: ExerciseModeProps) {
   const [currentIndex, setCurrentIndex] = useState(0)
   const [userAnswer, setUserAnswer] = useState('')
   const [showResult, setShowResult] = useState(false)
   const [correct, setCorrect] = useState(false)
   const [score, setScore] = useState(0)
+  const [total, setTotal] = useState(0)
   const [exerciseType, setExerciseType] = useState<'translation' | 'fill-blank'>('translation')
+  const [vocabulary, setVocabulary] = useState<any[]>(propVocabulary)
+  const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    // Load vocabulary from Firestore if not provided
+    if (propVocabulary.length === 0) {
+      loadVocabulary()
+    }
+    // Load exercise progress
+    loadProgress()
+  }, [])
+
+  const loadVocabulary = async () => {
+    setLoading(true)
+    try {
+      const response = await fetch('/api/vocabulary')
+      const data = await response.json()
+      if (data.vocabulary) {
+        setVocabulary(data.vocabulary)
+      }
+    } catch (error) {
+      console.error('Failed to load vocabulary:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const loadProgress = async () => {
+    try {
+      const response = await fetch('/api/exercise-progress')
+      const data = await response.json()
+      if (data.score !== undefined) {
+        setScore(data.score)
+        setTotal(data.total)
+      }
+    } catch (error) {
+      console.error('Failed to load progress:', error)
+    }
+  }
+
+  const saveProgress = async (newScore: number, newTotal: number, newCorrect: number) => {
+    try {
+      await fetch('/api/exercise-progress', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ score: newScore, total: newTotal, correct: newCorrect })
+      })
+    } catch (error) {
+      console.error('Failed to save progress:', error)
+    }
+  }
+
+  if (loading) {
+    return (
+      <div style={{ border: 'var(--borderWidth-thin) solid var(--borderColor-default)', borderRadius: 12, padding: 24 }}>
+        <Text>Loading vocabulary...</Text>
+      </div>
+    )
+  }
 
   if (vocabulary.length === 0) {
     return (
@@ -35,7 +95,17 @@ export function ExerciseMode({ vocabulary = [], onBack }: ExerciseModeProps) {
     const isCorrect = userAnswer.toLowerCase().trim() === englishWord.toLowerCase().trim()
     setCorrect(isCorrect)
     setShowResult(true)
-    if (isCorrect) setScore(prev => prev + 1)
+    if (isCorrect) {
+      const newScore = score + 1
+      const newTotal = total + 1
+      setScore(newScore)
+      setTotal(newTotal)
+      saveProgress(newScore, newTotal, newScore)
+    } else {
+      const newTotal = total + 1
+      setTotal(newTotal)
+      saveProgress(score, newTotal, score)
+    }
   }
 
   const handleNext = () => {
@@ -57,7 +127,7 @@ export function ExerciseMode({ vocabulary = [], onBack }: ExerciseModeProps) {
       <Stack direction="vertical" gap="normal">
         <Stack direction="horizontal" justify="space-between" align="center">
           <Heading as="h2" variant="medium">Practice Mode</Heading>
-          <Text size="small" style={{ color: 'var(--fgColor-muted)' }}>Score: {score}/{currentIndex + 1}</Text>
+          <Text size="small" style={{ color: 'var(--fgColor-muted)' }}>Score: {score}/{total}</Text>
         </Stack>
 
         <Stack direction="horizontal" gap="condensed">

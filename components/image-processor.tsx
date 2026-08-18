@@ -37,7 +37,39 @@ export function ImageProcessor({ onImageProcessed, maxImages = 5 }: ImageProcess
           throw new Error(`Failed to process ${file.name}`)
         }
 
-        return await response.json()
+        const result = await response.json()
+        
+        // Save analysis to Firestore
+        if (result.success && result.analysis) {
+          try {
+            await fetch('/api/image-analysis', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(result.analysis)
+            })
+            
+            // Save vocabulary to Firestore
+            if (result.analysis.vocabulary && Array.isArray(result.analysis.vocabulary)) {
+              for (const vocab of result.analysis.vocabulary) {
+                await fetch('/api/vocabulary', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    german: vocab.german || vocab.word,
+                    english: vocab.english || vocab.translation,
+                    type: vocab.type,
+                    context: vocab.context,
+                    source: 'image'
+                  })
+                })
+              }
+            }
+          } catch (saveError) {
+            console.error('Failed to save to Firestore:', saveError)
+          }
+        }
+        
+        return result
       })
 
       const processedResults = await Promise.all(uploadPromises)
