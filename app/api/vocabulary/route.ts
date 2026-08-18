@@ -20,8 +20,10 @@ export async function GET(request: Request) {
       }, { status: 401 })
     }
 
-    const snapshot = await adminDb.collection('vocabulary').where('userId', '==', user.uid).orderBy('createdAt', 'desc').get()
-    return NextResponse.json({ vocabulary: snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })) })
+    const snapshot = await adminDb.collection('vocabulary').where('userId', '==', user.uid).get()
+    const vocabulary = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as any))
+    vocabulary.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    return NextResponse.json({ vocabulary })
   } catch (error) {
     console.error('Error loading vocabulary:', error)
     return NextResponse.json({ 

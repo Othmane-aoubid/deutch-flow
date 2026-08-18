@@ -20,8 +20,10 @@ export async function GET(request: Request) {
       }, { status: 401 })
     }
 
-    const snapshot = await adminDb.collection('imageAnalysis').where('userId', '==', user.uid).orderBy('createdAt', 'desc').limit(50).get()
-    return NextResponse.json({ analyses: snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })) })
+    const snapshot = await adminDb.collection('imageAnalysis').where('userId', '==', user.uid).limit(50).get()
+    const analyses = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as any))
+    analyses.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    return NextResponse.json({ analyses })
   } catch (error) {
     console.error('Error loading image analyses:', error)
     return NextResponse.json({ 
