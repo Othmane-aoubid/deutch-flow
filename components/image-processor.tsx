@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { Button, Stack, Text, Label, Heading } from '@primer/react'
 import { ImageIcon, UploadIcon, CheckCircleIcon, XCircleIcon, PlayIcon, TrashIcon } from '@primer/octicons-react'
+import { ExerciseMode } from './exercise-mode'
 
 interface ImageProcessorProps {
   onImageProcessed?: (result: any) => void
@@ -13,6 +14,7 @@ export function ImageProcessor({ onImageProcessed, maxImages = 5 }: ImageProcess
   const [uploading, setUploading] = useState(false)
   const [results, setResults] = useState<any[]>([])
   const [error, setError] = useState<string | null>(null)
+  const [showExercises, setShowExercises] = useState(false)
 
   const handleImageUpload = async (files: FileList | null) => {
     if (!files || files.length === 0) return
@@ -74,6 +76,17 @@ export function ImageProcessor({ onImageProcessed, maxImages = 5 }: ImageProcess
     return analysis
   }
 
+  const getAllVocabulary = () => {
+    const allVocab: any[] = []
+    results.forEach(result => {
+      const analysis = parseAnalysis(result.analysis)
+      if (analysis?.vocabulary) {
+        allVocab.push(...analysis.vocabulary)
+      }
+    })
+    return allVocab
+  }
+
   return (
     <div style={{ border: 'var(--borderWidth-thin) solid var(--borderColor-default)', borderRadius: 12, padding: 24 }}>
       <Stack direction="vertical" gap="normal">
@@ -103,6 +116,14 @@ export function ImageProcessor({ onImageProcessed, maxImages = 5 }: ImageProcess
               {uploading ? 'Processing...' : 'Upload Images'}
             </Button>
           </label>
+          {getAllVocabulary().length > 0 && (
+            <Button 
+              variant={showExercises ? 'primary' : 'default'}
+              onClick={() => setShowExercises(!showExercises)}
+            >
+              {showExercises ? 'View Results' : 'Practice Mode'}
+            </Button>
+          )}
         </Stack>
 
         {error && (
@@ -114,105 +135,111 @@ export function ImageProcessor({ onImageProcessed, maxImages = 5 }: ImageProcess
 
         {results.length > 0 && (
           <Stack direction="vertical" gap="normal">
-            <Label variant="success">Processed Images</Label>
-            {results.map((result, index) => {
-              const analysis = parseAnalysis(result.analysis)
-              if (!analysis) return null
+            {showExercises ? (
+              <ExerciseMode vocabulary={getAllVocabulary()} />
+            ) : (
+              <>
+                <Label variant="success">Processed Images</Label>
+                {results.map((result, index) => {
+                  const analysis = parseAnalysis(result.analysis)
+                  if (!analysis) return null
 
-              return (
-                <div key={index} style={{ 
-                  background: 'var(--bgColor-muted)', 
-                  borderRadius: 12, 
-                  padding: 20,
-                  border: 'var(--borderWidth-thin) solid var(--borderColor-default)'
-                }}>
-                  <Stack direction="horizontal" justify="space-between" align="center" style={{ marginBottom: 16 }}>
-                    <Stack direction="horizontal" align="center" gap="condensed">
-                      <span style={{ color: 'var(--fgColor-success)' }}>
-                        <CheckCircleIcon />
-                      </span>
-                      <Text weight="semibold">Image {index + 1}</Text>
-                      {analysis.learningLevel && (
-                        <Label variant="secondary">{analysis.learningLevel}</Label>
-                      )}
-                    </Stack>
-                    <Button 
-                      variant="danger" 
-                      size="small" 
-                      leadingVisual={TrashIcon}
-                      onClick={() => deleteResult(index)}
-                    >
-                      Delete
-                    </Button>
-                  </Stack>
-
-                  {analysis.germanText && (
-                    <div style={{ marginBottom: 16, padding: 16, background: 'var(--bgColor-default)', borderRadius: 8 }}>
-                      <Stack direction="horizontal" justify="space-between" align="center" style={{ marginBottom: 8 }}>
-                        <Text size="small" style={{ color: 'var(--fgColor-muted)' }}>German Text:</Text>
+                  return (
+                    <div key={index} style={{ 
+                      background: 'var(--bgColor-muted)', 
+                      borderRadius: 12, 
+                      padding: 20,
+                      border: 'var(--borderWidth-thin) solid var(--borderColor-default)'
+                    }}>
+                      <Stack direction="horizontal" justify="space-between" align="center" style={{ marginBottom: 16 }}>
+                        <Stack direction="horizontal" align="center" gap="condensed">
+                          <span style={{ color: 'var(--fgColor-success)' }}>
+                            <CheckCircleIcon />
+                          </span>
+                          <Text weight="semibold">Image {index + 1}</Text>
+                          {analysis.learningLevel && (
+                            <Label variant="secondary">{analysis.learningLevel}</Label>
+                          )}
+                        </Stack>
                         <Button 
-                          variant="default" 
+                          variant="danger" 
                           size="small" 
-                          leadingVisual={PlayIcon}
-                          onClick={() => speakText(analysis.germanText)}
+                          leadingVisual={TrashIcon}
+                          onClick={() => deleteResult(index)}
                         >
-                          Listen
+                          Delete
                         </Button>
                       </Stack>
-                      <Text style={{ fontSize: 16, lineHeight: 1.6 }}>{analysis.germanText}</Text>
-                    </div>
-                  )}
 
-                  {analysis.translation && (
-                    <div style={{ marginBottom: 16, padding: 16, background: 'var(--bgColor-default)', borderRadius: 8 }}>
-                      <Text size="small" style={{ color: 'var(--fgColor-muted)', marginBottom: 8 }}>Translation:</Text>
-                      <Text style={{ fontSize: 14, lineHeight: 1.6 }}>{analysis.translation}</Text>
-                    </div>
-                  )}
+                      {analysis.germanText && (
+                        <div style={{ marginBottom: 16, padding: 16, background: 'var(--bgColor-default)', borderRadius: 8 }}>
+                          <Stack direction="horizontal" justify="space-between" align="center" style={{ marginBottom: 8 }}>
+                            <Text size="small" style={{ color: 'var(--fgColor-muted)' }}>German Text:</Text>
+                            <Button 
+                              variant="default" 
+                              size="small" 
+                              leadingVisual={PlayIcon}
+                              onClick={() => speakText(analysis.germanText)}
+                            >
+                              Listen
+                            </Button>
+                          </Stack>
+                          <Text style={{ fontSize: 16, lineHeight: 1.6 }}>{analysis.germanText}</Text>
+                        </div>
+                      )}
 
-                  {analysis.description && (
-                    <div style={{ marginBottom: 16, padding: 16, background: 'var(--bgColor-default)', borderRadius: 8 }}>
-                      <Text size="small" style={{ color: 'var(--fgColor-muted)', marginBottom: 8 }}>Description:</Text>
-                      <Text size="small">{analysis.description}</Text>
-                    </div>
-                  )}
+                      {analysis.translation && (
+                        <div style={{ marginBottom: 16, padding: 16, background: 'var(--bgColor-default)', borderRadius: 8 }}>
+                          <Text size="small" style={{ color: 'var(--fgColor-muted)', marginBottom: 8 }}>Translation:</Text>
+                          <Text style={{ fontSize: 14, lineHeight: 1.6 }}>{analysis.translation}</Text>
+                        </div>
+                      )}
 
-                  {analysis.vocabulary && analysis.vocabulary.length > 0 && (
-                    <div>
-                      <Text size="small" style={{ color: 'var(--fgColor-muted)', marginBottom: 12 }}>Vocabulary:</Text>
-                      <Stack direction="vertical" gap="condensed">
-                        {analysis.vocabulary.map((vocab: any, vIndex: number) => (
-                          <div key={vIndex} style={{ 
-                            padding: 12, 
-                            background: 'var(--bgColor-default)', 
-                            borderRadius: 8,
-                            border: 'var(--borderWidth-thin) solid var(--borderColor-muted)'
-                          }}>
-                            <Stack direction="horizontal" justify="space-between" align="center">
-                              <Stack direction="vertical" gap="condensed">
-                                <Text weight="semibold" style={{ fontSize: 16 }}>{vocab.german || vocab.word}</Text>
-                                <Text size="small">{vocab.english || vocab.translation}</Text>
-                                {vocab.type && (
-                                  <Label variant="secondary" size="small">{vocab.type}</Label>
-                                )}
-                              </Stack>
-                              <Button 
-                                variant="default" 
-                                size="small" 
-                                leadingVisual={PlayIcon}
-                                onClick={() => speakText(vocab.german || vocab.word)}
-                              >
-                                Listen
-                              </Button>
-                            </Stack>
-                          </div>
-                        ))}
-                      </Stack>
+                      {analysis.description && (
+                        <div style={{ marginBottom: 16, padding: 16, background: 'var(--bgColor-default)', borderRadius: 8 }}>
+                          <Text size="small" style={{ color: 'var(--fgColor-muted)', marginBottom: 8 }}>Description:</Text>
+                          <Text size="small">{analysis.description}</Text>
+                        </div>
+                      )}
+
+                      {analysis.vocabulary && analysis.vocabulary.length > 0 && (
+                        <div>
+                          <Text size="small" style={{ color: 'var(--fgColor-muted)', marginBottom: 12 }}>Vocabulary:</Text>
+                          <Stack direction="vertical" gap="condensed">
+                            {analysis.vocabulary.map((vocab: any, vIndex: number) => (
+                              <div key={vIndex} style={{ 
+                                padding: 12, 
+                                background: 'var(--bgColor-default)', 
+                                borderRadius: 8,
+                                border: 'var(--borderWidth-thin) solid var(--borderColor-muted)'
+                              }}>
+                                <Stack direction="horizontal" justify="space-between" align="center">
+                                  <Stack direction="vertical" gap="condensed">
+                                    <Text weight="semibold" style={{ fontSize: 16 }}>{vocab.german || vocab.word}</Text>
+                                    <Text size="small">{vocab.english || vocab.translation}</Text>
+                                    {vocab.type && (
+                                      <Label variant="secondary" size="small">{vocab.type}</Label>
+                                    )}
+                                  </Stack>
+                                  <Button 
+                                    variant="default" 
+                                    size="small" 
+                                    leadingVisual={PlayIcon}
+                                    onClick={() => speakText(vocab.german || vocab.word)}
+                                  >
+                                    Listen
+                                  </Button>
+                                </Stack>
+                              </div>
+                            ))}
+                          </Stack>
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
-              )
-            })}
+                  )
+                })}
+              </>
+            )}
           </Stack>
         )}
       </Stack>
