@@ -25,9 +25,18 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     setError('')
     try {
       if (!firebaseAuth) throw new Error('Firebase is not configured.')
-      if (registering) await createUserWithEmailAndPassword(firebaseAuth, email, password)
-      else await signInWithEmailAndPassword(firebaseAuth, email, password)
+      console.log('Firebase Auth configured:', firebaseConfigured)
+      console.log('Attempting to', registering ? 'register' : 'sign in', 'with:', email)
+      
+      if (registering) {
+        const userCredential = await createUserWithEmailAndPassword(firebaseAuth, email, password)
+        console.log('Registration successful:', userCredential.user.email)
+      } else {
+        const userCredential = await signInWithEmailAndPassword(firebaseAuth, email, password)
+        console.log('Sign in successful:', userCredential.user.email)
+      }
     } catch (caught) {
+      console.error('Authentication error:', caught)
       setError(caught instanceof Error ? caught.message.replace('Firebase: ', '') : 'Unable to authenticate.')
     }
   }
