@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { Button, Heading, Label, Stack, Text } from '@primer/react'
 import { ArrowLeftIcon, CheckCircleIcon, PlayIcon, TrashIcon } from '@primer/octicons-react'
 import { useRouter } from 'next/navigation'
-import { getAuth } from 'firebase/auth'
+import { firebaseAuth } from '@/lib/firebase'
 
 export default function ImageAnalysesPage() {
   const router = useRouter()
@@ -18,13 +18,19 @@ export default function ImageAnalysesPage() {
 
   const loadAnalyses = async () => {
     try {
-      const auth = getAuth()
-      const user = auth.currentUser
-      const headers: Record<string, string> = {}
-      if (user) {
-        const token = await user.getIdToken()
-        headers['Authorization'] = `Bearer ${token}`
+      if (!firebaseAuth) {
+        setError('Firebase not configured')
+        setLoading(false)
+        return
       }
+      const user = firebaseAuth.currentUser
+      if (!user) {
+        setError('Please sign in to view analyses')
+        setLoading(false)
+        return
+      }
+      const token = await user.getIdToken()
+      const headers: Record<string, string> = { 'Authorization': `Bearer ${token}` }
       const response = await fetch('/api/image-analysis', { headers })
       const data = await response.json()
       if (!response.ok) {
@@ -51,13 +57,11 @@ export default function ImageAnalysesPage() {
 
   const deleteAnalysis = async (id: string) => {
     try {
-      const auth = getAuth()
-      const user = auth.currentUser
-      const headers: Record<string, string> = {}
-      if (user) {
-        const token = await user.getIdToken()
-        headers['Authorization'] = `Bearer ${token}`
-      }
+      if (!firebaseAuth) return
+      const user = firebaseAuth.currentUser
+      if (!user) return
+      const token = await user.getIdToken()
+      const headers: Record<string, string> = { 'Authorization': `Bearer ${token}` }
       await fetch(`/api/image-analysis/${id}`, { method: 'DELETE', headers })
       loadAnalyses()
     } catch (err) {

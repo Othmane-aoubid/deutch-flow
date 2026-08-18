@@ -7,7 +7,7 @@ import { AuthGate, SignOutButton } from '@/components/auth-gate'
 import { ImageProcessor } from '@/components/image-processor'
 import { Translator } from '@/components/translator'
 import { useRouter } from 'next/navigation'
-import { getAuth } from 'firebase/auth'
+import { firebaseAuth } from '@/lib/firebase'
 
 export default function Page() {
   return <AuthGate><PageContent /></AuthGate>
@@ -217,13 +217,11 @@ function LearnerMode({ onBack }: { onBack: () => void }) {
   useEffect(() => {
     const loadLessons = async () => {
       try {
-        const auth = getAuth()
-        const user = auth.currentUser
-        const headers: Record<string, string> = {}
-        if (user) {
-          const token = await user.getIdToken()
-          headers['Authorization'] = `Bearer ${token}`
-        }
+        if (!firebaseAuth) return
+        const user = firebaseAuth.currentUser
+        if (!user) return
+        const token = await user.getIdToken()
+        const headers: Record<string, string> = { 'Authorization': `Bearer ${token}` }
         const res = await fetch('/api/lessons', { headers })
         if (!res.ok) {
           const err = await res.json()
@@ -250,13 +248,11 @@ function LearnerMode({ onBack }: { onBack: () => void }) {
 
   const deleteLesson = async (lessonId: string) => {
     try {
-      const auth = getAuth()
-      const user = auth.currentUser
-      const headers: Record<string, string> = {}
-      if (user) {
-        const token = await user.getIdToken()
-        headers['Authorization'] = `Bearer ${token}`
-      }
+      if (!firebaseAuth) return
+      const user = firebaseAuth.currentUser
+      if (!user) return
+      const token = await user.getIdToken()
+      const headers: Record<string, string> = { 'Authorization': `Bearer ${token}` }
       await fetch(`/api/lessons/${lessonId}`, { method: 'DELETE', headers })
       setLessons(prev => prev.filter(l => l.id !== lessonId))
     } catch (error) {

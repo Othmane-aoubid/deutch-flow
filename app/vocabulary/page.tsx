@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { Button, Heading, Label, Stack, Text, FormControl, TextInput } from '@primer/react'
 import { ArrowLeftIcon, CheckCircleIcon, XCircleIcon, PlayIcon, TrashIcon, SyncIcon, ArrowRightIcon } from '@primer/octicons-react'
 import { useRouter } from 'next/navigation'
-import { getAuth } from 'firebase/auth'
+import { firebaseAuth } from '@/lib/firebase'
 
 export default function VocabularyPage() {
   const router = useRouter()
@@ -26,8 +26,12 @@ export default function VocabularyPage() {
   const loadVocabulary = async () => {
     setLoading(true)
     try {
-      const auth = getAuth()
-      const user = auth.currentUser
+      if (!firebaseAuth) {
+        setError('Firebase not configured')
+        setLoading(false)
+        return
+      }
+      const user = firebaseAuth.currentUser
       if (!user) {
         console.error('No authenticated user found')
         setError('Please sign in to load vocabulary')
@@ -63,13 +67,11 @@ export default function VocabularyPage() {
 
   const markAsLearned = async (id: string, learned: boolean) => {
     try {
-      const auth = getAuth()
-      const user = auth.currentUser
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-      if (user) {
-        const token = await user.getIdToken()
-        headers['Authorization'] = `Bearer ${token}`
-      }
+      if (!firebaseAuth) return
+      const user = firebaseAuth.currentUser
+      if (!user) return
+      const token = await user.getIdToken()
+      const headers: Record<string, string> = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }
       await fetch(`/api/vocabulary/${id}`, {
         method: 'PATCH',
         headers,
@@ -83,13 +85,11 @@ export default function VocabularyPage() {
 
   const deleteVocabulary = async (id: string) => {
     try {
-      const auth = getAuth()
-      const user = auth.currentUser
-      const headers: Record<string, string> = {}
-      if (user) {
-        const token = await user.getIdToken()
-        headers['Authorization'] = `Bearer ${token}`
-      }
+      if (!firebaseAuth) return
+      const user = firebaseAuth.currentUser
+      if (!user) return
+      const token = await user.getIdToken()
+      const headers: Record<string, string> = { 'Authorization': `Bearer ${token}` }
       await fetch(`/api/vocabulary/${id}`, { method: 'DELETE', headers })
       loadVocabulary()
     } catch (error) {
