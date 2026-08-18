@@ -136,7 +136,7 @@ export function ExerciseMode({ vocabulary: propVocabulary = [], onBack }: Exerci
             size="small"
             onClick={() => setExerciseType('translation')}
           >
-            Translation
+            German to English
           </Button>
           <Button 
             variant={exerciseType === 'fill-blank' ? 'primary' : 'default'}
@@ -150,19 +150,19 @@ export function ExerciseMode({ vocabulary: propVocabulary = [], onBack }: Exerci
         {exerciseType === 'translation' ? (
           <Stack direction="vertical" gap="normal" style={{ padding: 20, background: 'var(--bgColor-default)', borderRadius: 8 }}>
             <Stack direction="horizontal" justify="space-between" align="center">
-              <Text size="small" style={{ color: 'var(--fgColor-muted)' }}>Translate to English:</Text>
+              <Text size="small" style={{ color: 'var(--fgColor-muted)' }}>What does this German word mean?</Text>
               <Button variant="default" size="small" onClick={handleSpeak}>🔊 Listen</Button>
             </Stack>
             <Heading as="h3" variant="large" style={{ fontSize: 32 }}>{germanWord}</Heading>
             {currentWord.type && <Label variant="secondary">{currentWord.type}</Label>}
             
             <FormControl>
-              <FormControl.Label>Your answer:</FormControl.Label>
+              <FormControl.Label>Type the meaning in English:</FormControl.Label>
               <TextInput
                 value={userAnswer}
                 onChange={(e) => setUserAnswer(e.target.value)}
                 disabled={showResult}
-                placeholder="Type the English translation..."
+                placeholder="Type the English meaning..."
               />
             </FormControl>
 

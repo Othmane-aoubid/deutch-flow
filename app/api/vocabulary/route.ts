@@ -22,6 +22,7 @@ export async function POST(request: Request) {
     type: typeof body.type === 'string' ? body.type : null,
     context: typeof body.context === 'string' ? body.context : null,
     source: typeof body.source === 'string' ? body.source : 'image',
+    learned: false,
     userId: user.uid,
     createdAt: new Date().toISOString(),
   }

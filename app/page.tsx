@@ -2,16 +2,18 @@
 
 import { useState, useEffect } from 'react'
 import { Button, Heading, Label, Link, Stack, Text, TextInput } from '@primer/react'
-import { BookIcon, ChevronRightIcon, GraphIcon, UnmuteIcon, PlayIcon, SparkleFillIcon } from '@primer/octicons-react'
+import { BookIcon, ChevronRightIcon, GraphIcon, UnmuteIcon, PlayIcon, SparkleFillIcon, ArrowLeftIcon } from '@primer/octicons-react'
 import { AuthGate, SignOutButton } from '@/components/auth-gate'
 import { ImageProcessor } from '@/components/image-processor'
 import { Translator } from '@/components/translator'
+import { useRouter } from 'next/navigation'
 
 export default function Page() {
   return <AuthGate><PageContent /></AuthGate>
 }
 
 function PageContent() {
+  const router = useRouter()
   const [mode, setMode] = useState<'chooser' | 'teacher' | 'learner'>('chooser')
   const [recording, setRecording] = useState(false)
   const [lessonTitle, setLessonTitle] = useState('A conversation at the bakery')
@@ -39,6 +41,7 @@ function PageContent() {
         <Stack direction="horizontal" gap="normal" style={{ width: '100%', justifyContent: 'center', flexWrap: 'wrap' }}>
           <ModeCard icon={<UnmuteIcon size={24} />} label="Teacher Mode" title="Record a lesson" description="Capture classroom conversation with live transcription and AI-powered feedback." action="Start teaching" onClick={() => setMode('teacher')} />
           <ModeCard icon={<BookIcon size={24} />} label="Learner Mode" title="Review your progress" description="Return to saved lessons, practice corrections, and build lasting fluency." action="Open my lessons" onClick={() => setMode('learner')} />
+          <ModeCard icon={<GraphIcon size={24} />} label="Vocabulary" title="My word bank" description="Review saved vocabulary, mark words as mastered, and practice pronunciation." action="View vocabulary" onClick={() => router.push('/vocabulary')} />
         </Stack>
         <Stack direction="horizontal" gap="condensed" align="center" style={{ color: 'var(--fgColor-muted)' }}>
           <SparkleFillIcon size={16} /><Text size="small">Powered by NVIDIA NIM · Your audio is discarded after processing</Text>
