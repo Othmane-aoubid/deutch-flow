@@ -78,16 +78,19 @@ export function ImageProcessor({ onImageProcessed, maxImages = 5 }: ImageProcess
             const token = await user.getIdToken()
             const headers: Record<string, string> = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }
             
-            await fetch('/api/image-analysis', {
+            // Save analysis
+            const analysisResponse = await fetch('/api/image-analysis', {
               method: 'POST',
               headers,
               body: JSON.stringify(result.analysis)
             })
+            console.log('Analysis save response:', analysisResponse.status)
             
             // Save vocabulary to Firestore
             if (result.analysis.vocabulary && Array.isArray(result.analysis.vocabulary)) {
+              console.log('Saving vocabulary items:', result.analysis.vocabulary.length)
               for (const vocab of result.analysis.vocabulary) {
-                await fetch('/api/vocabulary', {
+                const vocabResponse = await fetch('/api/vocabulary', {
                   method: 'POST',
                   headers,
                   body: JSON.stringify({
@@ -98,6 +101,11 @@ export function ImageProcessor({ onImageProcessed, maxImages = 5 }: ImageProcess
                     source: 'image'
                   })
                 })
+                console.log('Vocabulary save response:', vocabResponse.status)
+                if (!vocabResponse.ok) {
+                  const error = await vocabResponse.text()
+                  console.error('Failed to save vocabulary item:', error)
+                }
               }
             }
           } catch (saveError) {
