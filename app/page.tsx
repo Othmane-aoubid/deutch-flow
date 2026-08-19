@@ -2,10 +2,11 @@
 
 import { useState, useEffect } from 'react'
 import { Button, Heading, Label, Link, Stack, Text, TextInput } from '@primer/react'
-import { BookIcon, ChevronRightIcon, GraphIcon, UnmuteIcon, PlayIcon, SparkleFillIcon, ArrowLeftIcon } from '@primer/octicons-react'
+import { BookIcon, ChevronRightIcon, GraphIcon, UnmuteIcon, PlayIcon, SparkleFillIcon, ArrowLeftIcon, CommentIcon } from '@primer/octicons-react'
 import { AuthGate, SignOutButton } from '@/components/auth-gate'
 import { ImageProcessor } from '@/components/image-processor'
 import { Translator } from '@/components/translator'
+import { AIChat } from '@/components/ai-chat'
 import { useRouter } from 'next/navigation'
 import { firebaseAuth } from '@/lib/firebase'
 
@@ -18,6 +19,7 @@ function PageContent() {
   const [mode, setMode] = useState<'chooser' | 'teacher' | 'learner'>('chooser')
   const [recording, setRecording] = useState(false)
   const [lessonTitle, setLessonTitle] = useState('A conversation at the bakery')
+  const [showChat, setShowChat] = useState(false)
   const [status, setStatus] = useState('Ready when you are')
 
   if (mode === 'teacher') {
@@ -49,6 +51,22 @@ function PageContent() {
           <SparkleFillIcon size={16} /><Text size="small">Powered by NVIDIA NIM · Your audio is discarded after processing</Text>
         </Stack>
       </Stack>
+      {showChat && <AIChat onClose={() => setShowChat(false)} />}
+      <Button
+        variant="primary"
+        style={{
+          position: 'fixed',
+          bottom: 20,
+          right: 20,
+          borderRadius: '50%',
+          width: 56,
+          height: 56,
+          padding: 0,
+          zIndex: 999
+        }}
+        leadingVisual={<CommentIcon size={24} />}
+        onClick={() => setShowChat(!showChat)}
+      />
     </main>
   )
 }
