@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { Button, Heading, Label, Link, Stack, Text, TextInput } from '@primer/react'
-import { BookIcon, ChevronRightIcon, GraphIcon, UnmuteIcon, PlayIcon, SparkleFillIcon, ArrowLeftIcon, CommentIcon } from '@primer/octicons-react'
+import { BookIcon, ChevronRightIcon, GraphIcon, UnmuteIcon, PlayIcon, SparkleFillIcon, ArrowLeftIcon, CommentIcon, HeartIcon } from '@primer/octicons-react'
 import { AuthGate, SignOutButton } from '@/components/auth-gate'
 import { ImageProcessor } from '@/components/image-processor'
 import { Translator } from '@/components/translator'
@@ -45,6 +45,7 @@ function PageContent() {
           <ModeCard icon={<UnmuteIcon size={24} />} label="Teacher Mode" title="Record a lesson" description="Capture classroom conversation with live transcription and AI-powered feedback." action="Start teaching" onClick={() => setMode('teacher')} />
           <ModeCard icon={<BookIcon size={24} />} label="Learner Mode" title="Review your progress" description="Return to saved lessons, practice corrections, and build lasting fluency." action="Open my lessons" onClick={() => setMode('learner')} />
           <ModeCard icon={<GraphIcon size={24} />} label="Vocabulary" title="My word bank" description="Review saved vocabulary, mark words as mastered, and practice pronunciation." action="View vocabulary" onClick={() => router.push('/vocabulary')} />
+          <ModeCard icon={<HeartIcon size={24} />} label="Favorites" title="Saved items" description="View your favorite vocabulary and analyses for quick access." action="View favorites" onClick={() => router.push('/favorites')} />
           <ModeCard icon={<SparkleFillIcon size={24} />} label="Image Analyses" title="AI image learning" description="View all your image analyses, practice vocabulary from images, and learn German from visual content." action="View analyses" onClick={() => router.push('/image-analyses')} />
         </Stack>
         <Stack direction="horizontal" gap="condensed" align="center" style={{ color: 'var(--fgColor-muted)' }}>
