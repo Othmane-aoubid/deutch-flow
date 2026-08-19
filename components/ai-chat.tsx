@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { Button, FormControl, Heading, Label, Stack, Text, TextInput } from '@primer/react'
-import { SendIcon, XIcon } from '@primer/octicons-react'
+import { ArrowRightIcon, XIcon } from '@primer/octicons-react'
 
 interface AIChatProps {
   onClose?: () => void
@@ -98,7 +98,7 @@ export function AIChat({ onClose }: AIChatProps) {
           <Button 
             variant="primary" 
             size="small"
-            leadingVisual={<SendIcon />}
+            leadingVisual={<ArrowRightIcon />}
             onClick={sendMessage}
             disabled={!input.trim() || loading}
           >
