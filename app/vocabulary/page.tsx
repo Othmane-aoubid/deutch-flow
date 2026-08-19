@@ -5,6 +5,7 @@ import { Button, Heading, Label, Stack, Text, FormControl, TextInput } from '@pr
 import { ArrowLeftIcon, CheckCircleIcon, XCircleIcon, PlayIcon, TrashIcon, SyncIcon, ArrowRightIcon, HeartIcon } from '@primer/octicons-react'
 import { useRouter } from 'next/navigation'
 import { firebaseAuth } from '@/lib/firebase'
+import { onAuthStateChanged } from 'firebase/auth'
 
 export default function VocabularyPage() {
   const router = useRouter()
@@ -20,6 +21,49 @@ export default function VocabularyPage() {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
+    const loadVocabulary = async () => {
+      try {
+        if (!firebaseAuth) {
+          setError('Firebase not configured')
+          setLoading(false)
+          return
+        }
+        
+        const unsubscribe = onAuthStateChanged(firebaseAuth, async (user) => {
+          if (!user) {
+            setError('Please sign in to view vocabulary')
+            setLoading(false)
+            return
+          }
+          
+          const token = await user.getIdToken()
+          const headers: Record<string, string> = { 'Authorization': `Bearer ${token}` }
+          const response = await fetch('/api/vocabulary', { headers })
+          
+          if (!response.ok) {
+            const text = await response.text()
+            console.error('API error response:', text)
+            setError(`Failed to load vocabulary: ${response.status}`)
+            setLoading(false)
+            return
+          }
+          
+          const data = await response.json()
+          if (data.vocabulary) {
+            setVocabulary(data.vocabulary)
+          } else {
+            setVocabulary([])
+          }
+          setLoading(false)
+        })
+        
+        return () => unsubscribe()
+      } catch (err) {
+        console.error('Failed to load vocabulary:', err)
+        setError(err instanceof Error ? err.message : 'Failed to load vocabulary')
+        setLoading(false)
+      }
+    }
     loadVocabulary()
   }, [])
 
