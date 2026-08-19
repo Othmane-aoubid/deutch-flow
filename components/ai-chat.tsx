@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { Button, Heading, Label, Stack, Text, TextInput } from '@primer/react'
 import { ArrowRightIcon, XIcon, CommentIcon, ChevronLeftIcon, ChevronRightIcon } from '@primer/octicons-react'
+import ReactMarkdown from 'react-markdown'
 
 interface AIChatProps {
   onClose?: () => void
@@ -104,7 +105,23 @@ export function AIChat({ onClose, messages, setMessages, collapsed = false, onTo
                 lineHeight: 1.4,
                 wordBreak: 'break-word'
               }}>
-                {msg.content}
+                {msg.role === 'assistant' ? (
+                  <ReactMarkdown
+                    components={{
+                      p: ({children}) => <Text style={{ margin: '4px 0' }}>{children}</Text>,
+                      strong: ({children}) => <Text weight="semibold">{children}</Text>,
+                      em: ({children}) => <Text style={{ fontStyle: 'italic' }}>{children}</Text>,
+                      ul: ({children}) => <ul style={{ margin: '8px 0', paddingLeft: 20 }}>{children}</ul>,
+                      ol: ({children}) => <ol style={{ margin: '8px 0', paddingLeft: 20 }}>{children}</ol>,
+                      li: ({children}) => <li style={{ margin: '4px 0' }}>{children}</li>,
+                      code: ({children}) => <code style={{ background: 'var(--bgColor-muted)', padding: '2px 4px', borderRadius: 4, fontSize: 12 }}>{children}</code>
+                    }}
+                  >
+                    {msg.content}
+                  </ReactMarkdown>
+                ) : (
+                  msg.content
+                )}
               </div>
             ))}
             {loading && (
