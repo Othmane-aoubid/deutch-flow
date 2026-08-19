@@ -403,7 +403,7 @@ export default function VocabularyPage() {
                         size="small"
                         leadingVisual={favoritedIds.has(vocab.id) ? <HeartFillIcon size={14} /> : <HeartIcon size={14} />}
                         onClick={() => addToFavorites(vocab)}
-                        style={favoritedIds.has(vocab.id) ? { color: 'var(--fgColor-accent)' } : undefined}
+                        style={favoritedIds.has(vocab.id) ? { color: '#ff0000' } : undefined}
                       >
                         Favorite
                       </Button>

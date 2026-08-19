@@ -193,7 +193,7 @@ export default function ImageAnalysesPage() {
                           size="small"
                           leadingVisual={favoritedIds.has(id) ? <HeartFillIcon size={14} /> : <HeartIcon size={14} />}
                           onClick={() => addToFavorites(analysis)}
-                          style={favoritedIds.has(id) ? { color: 'var(--fgColor-accent)' } : undefined}
+                          style={favoritedIds.has(id) ? { color: '#ff0000' } : undefined}
                         >
                           Favorite
                         </Button>
