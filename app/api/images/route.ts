@@ -128,7 +128,24 @@ export async function POST(request: Request) {
               }
             }
           } catch (nvidiaError) {
-            return NextResponse.json({ error: 'Image analysis failed - both Gemini and NVIDIA APIs unavailable.' }, { status: 500 })
+            console.error('NVIDIA API error:', nvidiaError)
+            // Final fallback - provide sample German vocabulary
+            const sampleAnalysis = {
+              germanText: 'Willkommen! Das ist eine Beispielszene.',
+              translation: 'Welcome! This is a sample scene.',
+              description: 'Eine allgemeine Szene zum Deutschlernen.',
+              vocabulary: [
+                { word: 'Willkommen', translation: 'Welcome', context: 'Greeting', type: 'noun' },
+                { word: 'Szene', translation: 'Scene', context: 'Visual description', type: 'noun' },
+                { word: 'lernen', translation: 'to learn', context: 'Education', type: 'verb' },
+                { word: 'Beispiel', translation: 'Example', context: 'Sample', type: 'noun' }
+              ],
+              learningLevel: 'A1',
+              fallback: true,
+              sample: true
+            }
+            console.log('Using sample fallback data')
+            return NextResponse.json({ success: true, analysis: sampleAnalysis, fallback: true })
           }
         }
 
