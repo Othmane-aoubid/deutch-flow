@@ -56,21 +56,26 @@ function PageContent() {
         </Stack>
       </Stack>
       {showChat && <AIChat onClose={() => setShowChat(false)} messages={chatMessages} setMessages={setChatMessages} collapsed={chatCollapsed} onToggleCollapse={() => setChatCollapsed(!chatCollapsed)} />}
-      <Button
-        variant="primary"
-        style={{
-          position: 'fixed',
-          bottom: 20,
-          right: 20,
-          borderRadius: '50%',
-          width: 56,
-          height: 56,
-          padding: 0,
-          zIndex: 999
-        }}
-        leadingVisual={<CommentIcon size={24} />}
-        onClick={() => setShowChat(!showChat)}
-      />
+      {!showChat && (
+        <Button
+          variant="primary"
+          style={{
+            position: 'fixed',
+            bottom: 20,
+            right: 20,
+            borderRadius: '50%',
+            width: 56,
+            height: 56,
+            padding: 0,
+            zIndex: 999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}
+          leadingVisual={<CommentIcon size={24} />}
+          onClick={() => setShowChat(true)}
+        />
+      )}
     </main>
   )
 }
