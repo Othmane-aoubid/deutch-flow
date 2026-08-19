@@ -86,7 +86,18 @@ export async function POST(request: Request) {
             
             if (upstream.ok) {
               const result = await upstream.json()
-              return NextResponse.json({ success: true, analysis: result.choices?.[0]?.message?.content, fallback: true })
+              const content = result.choices?.[0]?.message?.content
+              console.log('NVIDIA response content:', content)
+              
+              try {
+                const parsedAnalysis = JSON.parse(content)
+                console.log('Parsed NVIDIA analysis:', parsedAnalysis)
+                return NextResponse.json({ success: true, analysis: parsedAnalysis, fallback: true })
+              } catch (parseError) {
+                console.error('Failed to parse NVIDIA response as JSON:', parseError)
+                // Return raw content as fallback
+                return NextResponse.json({ success: true, analysis: { germanText: content, translation: '', description: '', vocabulary: [], learningLevel: null, fallback: true }, fallback: true })
+              }
             }
             
             // Try fallback API
@@ -103,7 +114,17 @@ export async function POST(request: Request) {
               
               if (fallbackUpstream.ok) {
                 const result = await fallbackUpstream.json()
-                return NextResponse.json({ success: true, analysis: result.choices?.[0]?.message?.content, fallback: true })
+                const content = result.choices?.[0]?.message?.content
+                console.log('NVIDIA fallback response content:', content)
+                
+                try {
+                  const parsedAnalysis = JSON.parse(content)
+                  console.log('Parsed NVIDIA fallback analysis:', parsedAnalysis)
+                  return NextResponse.json({ success: true, analysis: parsedAnalysis, fallback: true })
+                } catch (parseError) {
+                  console.error('Failed to parse NVIDIA fallback response as JSON:', parseError)
+                  return NextResponse.json({ success: true, analysis: { germanText: content, translation: '', description: '', vocabulary: [], learningLevel: null, fallback: true }, fallback: true })
+                }
               }
             }
           } catch (nvidiaError) {
