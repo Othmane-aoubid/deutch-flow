@@ -223,10 +223,13 @@ function LearnerMode({ onBack }: { onBack: () => void }) {
         const token = await user.getIdToken()
         const headers: Record<string, string> = { 'Authorization': `Bearer ${token}` }
         const res = await fetch('/api/lessons', { headers })
+        
         if (!res.ok) {
-          const err = await res.json()
-          throw new Error(err.error || 'Failed to fetch lessons')
+          const text = await res.text()
+          console.error('API error response:', text)
+          throw new Error(`Failed to fetch lessons: ${res.status}`)
         }
+        
         const data = await res.json()
         if (data.lessons) setLessons(data.lessons)
       } catch (error) {
