@@ -40,6 +40,8 @@ export default function VocabularyPage() {
           
           const token = await user.getIdToken()
           const headers: Record<string, string> = { 'Authorization': `Bearer ${token}` }
+          
+          // Load vocabulary
           const response = await fetch('/api/vocabulary', { headers })
           
           if (!response.ok) {
@@ -56,6 +58,21 @@ export default function VocabularyPage() {
           } else {
             setVocabulary([])
           }
+          
+          // Load favorites to check which items are favorited
+          const favResponse = await fetch('/api/favorites', { headers })
+          if (favResponse.ok) {
+            const favData = await favResponse.json()
+            if (favData.favorites) {
+              const vocabIds = new Set<string>(
+                favData.favorites
+                  .filter((f: any) => f.type === 'vocabulary')
+                  .map((f: any) => f.german as string)
+              )
+              setFavoritedIds(vocabIds)
+            }
+          }
+          
           setLoading(false)
         })
         
@@ -172,7 +189,7 @@ export default function VocabularyPage() {
       })
       
       if (response.ok) {
-        setFavoritedIds(prev => new Set([...prev, vocab.id]))
+        setFavoritedIds(prev => new Set([...prev, vocab.german]))
         setShowFavoriteToast(true)
         setTimeout(() => setShowFavoriteToast(false), 2000)
       }
@@ -401,11 +418,13 @@ export default function VocabularyPage() {
                       <Button 
                         variant="default"
                         size="small"
+                        leadingVisual={
+                          <span style={{ color: favoritedIds.has(vocab.german) ? '#ff0000' : 'inherit', display: 'flex', alignItems: 'center' }}>
+                            {favoritedIds.has(vocab.german) ? <HeartFillIcon size={14} /> : <HeartIcon size={14} />}
+                          </span>
+                        }
                         onClick={() => addToFavorites(vocab)}
                       >
-                        <span style={{ color: favoritedIds.has(vocab.id) ? '#ff0000' : 'inherit', display: 'flex', alignItems: 'center' }}>
-                          {favoritedIds.has(vocab.id) ? <HeartFillIcon size={14} /> : <HeartIcon size={14} />}
-                        </span>
                         Favorite
                       </Button>
                       <Button 

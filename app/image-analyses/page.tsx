@@ -34,12 +34,13 @@ export default function ImageAnalysesPage() {
       }
       const token = await user.getIdToken()
       const headers: Record<string, string> = { 'Authorization': `Bearer ${token}` }
+      
       const response = await fetch('/api/image-analysis', { headers })
       
       if (!response.ok) {
         const text = await response.text()
         console.error('API error response:', text)
-        setError(`Failed to load analyses: ${response.status} ${response.statusText}`)
+        setError(`Failed to load analyses: ${response.status}`)
         setLoading(false)
         return
       }
@@ -49,6 +50,19 @@ export default function ImageAnalysesPage() {
         setAnalyses(data.analyses)
       } else {
         setAnalyses([])
+      }
+      
+      const favResponse = await fetch('/api/favorites', { headers })
+      if (favResponse.ok) {
+        const favData = await favResponse.json()
+        if (favData.favorites) {
+          const analysisIds = new Set<string>(
+            favData.favorites
+              .filter((f: any) => f.type === 'analysis')
+              .map((f: any) => f.german as string)
+          )
+          setFavoritedIds(analysisIds)
+        }
       }
     } catch (err) {
       console.error('Failed to load analyses:', err)
@@ -110,7 +124,7 @@ export default function ImageAnalysesPage() {
       })
       
       if (response.ok) {
-        setFavoritedIds(prev => new Set([...prev, analysis.id]))
+        setFavoritedIds(prev => new Set([...prev, analysis.germanText]))
         setShowFavoriteToast(true)
         setTimeout(() => setShowFavoriteToast(false), 2000)
       }
@@ -191,11 +205,13 @@ export default function ImageAnalysesPage() {
                         <Button 
                           variant="default"
                           size="small"
+                          leadingVisual={
+                            <span style={{ color: favoritedIds.has(analysis.germanText) ? '#ff0000' : 'inherit', display: 'flex', alignItems: 'center' }}>
+                              {favoritedIds.has(analysis.germanText) ? <HeartFillIcon size={14} /> : <HeartIcon size={14} />}
+                            </span>
+                          }
                           onClick={() => addToFavorites(analysis)}
                         >
-                          <span style={{ color: favoritedIds.has(id) ? '#ff0000' : 'inherit', display: 'flex', alignItems: 'center' }}>
-                            {favoritedIds.has(id) ? <HeartFillIcon size={14} /> : <HeartIcon size={14} />}
-                          </span>
                           Favorite
                         </Button>
                         <Button 
