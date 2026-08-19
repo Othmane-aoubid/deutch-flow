@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { Button, Heading, Label, Stack, Text, TextInput } from '@primer/react'
-import { ArrowRightIcon, XIcon, CommentIcon, ChevronLeftIcon, ChevronRightIcon } from '@primer/octicons-react'
+import { ArrowRightIcon, XIcon, CommentIcon, ChevronLeftIcon, ChevronRightIcon, PlayIcon } from '@primer/octicons-react'
 import ReactMarkdown from 'react-markdown'
 
 interface AIChatProps {
@@ -16,6 +16,14 @@ interface AIChatProps {
 export function AIChat({ onClose, messages, setMessages, collapsed = false, onToggleCollapse }: AIChatProps) {
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
+
+  const speakText = (text: string) => {
+    if (!window.speechSynthesis) return
+    const utterance = new SpeechSynthesisUtterance(text)
+    utterance.lang = 'de-DE'
+    utterance.rate = 0.8
+    window.speechSynthesis.speak(utterance)
+  }
 
   const sendMessage = async () => {
     if (!input.trim()) return
@@ -105,23 +113,36 @@ export function AIChat({ onClose, messages, setMessages, collapsed = false, onTo
                 lineHeight: 1.4,
                 wordBreak: 'break-word'
               }}>
-                {msg.role === 'assistant' ? (
-                  <ReactMarkdown
-                    components={{
-                      p: ({children}) => <Text style={{ margin: '4px 0' }}>{children}</Text>,
-                      strong: ({children}) => <Text weight="semibold">{children}</Text>,
-                      em: ({children}) => <Text style={{ fontStyle: 'italic' }}>{children}</Text>,
-                      ul: ({children}) => <ul style={{ margin: '8px 0', paddingLeft: 20 }}>{children}</ul>,
-                      ol: ({children}) => <ol style={{ margin: '8px 0', paddingLeft: 20 }}>{children}</ol>,
-                      li: ({children}) => <li style={{ margin: '4px 0' }}>{children}</li>,
-                      code: ({children}) => <code style={{ background: 'var(--bgColor-muted)', padding: '2px 4px', borderRadius: 4, fontSize: 12 }}>{children}</code>
-                    }}
-                  >
-                    {msg.content}
-                  </ReactMarkdown>
-                ) : (
-                  msg.content
-                )}
+                <Stack direction="vertical" gap="condensed">
+                  {msg.role === 'assistant' && (
+                    <Button 
+                      variant="invisible" 
+                      size="small" 
+                      leadingVisual={<PlayIcon size={12} />}
+                      onClick={() => speakText(msg.content)}
+                      style={{ padding: 2, alignSelf: 'flex-start' }}
+                    >
+                      Listen
+                    </Button>
+                  )}
+                  {msg.role === 'assistant' ? (
+                    <ReactMarkdown
+                      components={{
+                        p: ({children}) => <Text style={{ margin: '4px 0' }}>{children}</Text>,
+                        strong: ({children}) => <Text weight="semibold">{children}</Text>,
+                        em: ({children}) => <Text style={{ fontStyle: 'italic' }}>{children}</Text>,
+                        ul: ({children}) => <ul style={{ margin: '8px 0', paddingLeft: 20 }}>{children}</ul>,
+                        ol: ({children}) => <ol style={{ margin: '8px 0', paddingLeft: 20 }}>{children}</ol>,
+                        li: ({children}) => <li style={{ margin: '4px 0' }}>{children}</li>,
+                        code: ({children}) => <code style={{ background: 'var(--bgColor-muted)', padding: '2px 4px', borderRadius: 4, fontSize: 12 }}>{children}</code>
+                      }}
+                    >
+                      {msg.content}
+                    </ReactMarkdown>
+                  ) : (
+                    msg.content
+                  )}
+                </Stack>
               </div>
             ))}
             {loading && (
