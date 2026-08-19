@@ -1,8 +1,10 @@
 import { NextResponse } from 'next/server'
 import { adminDb, firebaseAdminConfigured, verifyFirebaseToken } from '@/lib/firebase-admin'
 
-export async function DELETE(request: Request, { params }: { params: { id: string } }) {
+export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const { id } = await params
+    
     if (!firebaseAdminConfigured || !adminDb) {
       return NextResponse.json({ error: 'Firebase Admin is not configured.' }, { status: 503 })
     }
@@ -12,7 +14,7 @@ export async function DELETE(request: Request, { params }: { params: { id: strin
       return NextResponse.json({ error: 'Sign-in required.' }, { status: 401 })
     }
 
-    await adminDb.collection('favorites').doc(params.id).delete()
+    await adminDb.collection('favorites').doc(id).delete()
     return NextResponse.json({ success: true })
   } catch (error) {
     console.error('Error deleting favorite:', error)
