@@ -61,20 +61,20 @@ export function AIChat({ onClose, messages, setMessages, collapsed = false, onTo
       zIndex: 1000,
       transition: 'width 0.3s ease'
     }}>
-      <Stack direction="horizontal" justify="space-between" align="center" style={{ padding: collapsed ? 12 : 16, borderBottom: 'var(--borderWidth-thin) solid var(--borderColor-default)', background: 'var(--bgColor-muted)' }}>
+      <Stack direction={collapsed ? 'vertical' : 'horizontal'} justify="space-between" align="center" style={{ padding: collapsed ? 12 : 16, borderBottom: collapsed ? 'none' : 'var(--borderWidth-thin) solid var(--borderColor-default)', background: 'var(--bgColor-muted)', minHeight: 50 }}>
         {!collapsed ? (
           <Stack direction="horizontal" gap="condensed" align="center">
             <span style={{ color: 'var(--fgColor-accent)' }}>💬</span>
             <Heading as="h3" variant="medium" style={{ fontSize: 14 }}>AI Tutor</Heading>
           </Stack>
         ) : (
-          <span style={{ color: 'var(--fgColor-accent)' }}>💬</span>
+          <span style={{ color: 'var(--fgColor-accent)', fontSize: 20 }}>💬</span>
         )}
-        <Stack direction="horizontal" gap="condensed">
+        <Stack direction={collapsed ? 'vertical' : 'horizontal'} gap={collapsed ? 'normal' : 'condensed'} align="center">
           <Button variant="invisible" size="small" onClick={onToggleCollapse} style={{ padding: 4 }}>
             {collapsed ? <ChevronLeftIcon size={16} /> : <ChevronRightIcon size={16} />}
           </Button>
-          {onClose && (
+          {!collapsed && onClose && (
             <Button variant="invisible" size="small" onClick={onClose} style={{ padding: 4 }}>
               <XIcon size={16} />
             </Button>
