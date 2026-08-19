@@ -1,15 +1,16 @@
 'use client'
 
 import { useState } from 'react'
-import { Button, FormControl, Heading, Label, Stack, Text, TextInput } from '@primer/react'
-import { ArrowRightIcon, XIcon } from '@primer/octicons-react'
+import { Button, Heading, Label, Stack, Text, TextInput } from '@primer/react'
+import { ArrowRightIcon, XIcon, CommentIcon } from '@primer/octicons-react'
 
 interface AIChatProps {
   onClose?: () => void
+  messages: Array<{ role: 'user' | 'assistant', content: string }>
+  setMessages: React.Dispatch<React.SetStateAction<Array<{ role: 'user' | 'assistant', content: string }>>>
 }
 
-export function AIChat({ onClose }: AIChatProps) {
-  const [messages, setMessages] = useState<Array<{ role: 'user' | 'assistant', content: string }>>([])
+export function AIChat({ onClose, messages, setMessages }: AIChatProps) {
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
 
@@ -46,21 +47,18 @@ export function AIChat({ onClose }: AIChatProps) {
   return (
     <div style={{ 
       position: 'fixed',
-      bottom: 20,
-      right: 20,
-      left: 'max(20px, calc(50% - 200px))',
-      width: 'calc(100% - 40px)',
-      maxWidth: 400,
-      maxHeight: '70vh',
+      top: 0,
+      right: 0,
+      width: 350,
+      height: '100vh',
       background: 'var(--bgColor-default)',
-      borderRadius: 12,
-      border: 'var(--borderWidth-thin) solid var(--borderColor-default)',
-      boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
+      borderLeft: 'var(--borderWidth-thin) solid var(--borderColor-default)',
+      boxShadow: '-4px 0 16px rgba(0,0,0,0.1)',
       display: 'flex',
       flexDirection: 'column',
       zIndex: 1000
     }}>
-      <Stack direction="horizontal" justify="space-between" align="center" style={{ padding: 16, borderBottom: 'var(--borderWidth-thin) solid var(--borderColor-default)', background: 'var(--bgColor-muted)', borderRadius: '12px 12px 0 0' }}>
+      <Stack direction="horizontal" justify="space-between" align="center" style={{ padding: 16, borderBottom: 'var(--borderWidth-thin) solid var(--borderColor-default)', background: 'var(--bgColor-muted)' }}>
         <Stack direction="horizontal" gap="condensed" align="center">
           <span style={{ color: 'var(--fgColor-accent)' }}>💬</span>
           <Heading as="h3" variant="medium" style={{ fontSize: 14 }}>AI Tutor</Heading>
@@ -72,7 +70,7 @@ export function AIChat({ onClose }: AIChatProps) {
         )}
       </Stack>
 
-      <div style={{ flex: 1, overflowY: 'auto', padding: 16, display: 'flex', flexDirection: 'column', gap: 12, minHeight: 200 }}>
+      <div style={{ flex: 1, overflowY: 'auto', padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
         {messages.length === 0 && (
           <div style={{ textAlign: 'center', padding: '20px 0' }}>
             <Text style={{ color: 'var(--fgColor-muted)', fontSize: 13, lineHeight: 1.5 }}>
@@ -102,7 +100,7 @@ export function AIChat({ onClose }: AIChatProps) {
         )}
       </div>
 
-      <div style={{ padding: 12, borderTop: 'var(--borderWidth-thin) solid var(--borderColor-default)', background: 'var(--bgColor-muted)', borderRadius: '0 0 12px 12px' }}>
+      <div style={{ padding: 12, borderTop: 'var(--borderWidth-thin) solid var(--borderColor-default)', background: 'var(--bgColor-muted)' }}>
         <Stack direction="horizontal" gap="condensed">
           <TextInput
             value={input}

@@ -20,6 +20,7 @@ function PageContent() {
   const [recording, setRecording] = useState(false)
   const [lessonTitle, setLessonTitle] = useState('A conversation at the bakery')
   const [showChat, setShowChat] = useState(false)
+  const [chatMessages, setChatMessages] = useState<Array<{ role: 'user' | 'assistant', content: string }>>([])
   const [status, setStatus] = useState('Ready when you are')
 
   if (mode === 'teacher') {
@@ -53,7 +54,7 @@ function PageContent() {
           <SparkleFillIcon size={16} /><Text size="small">Powered by NVIDIA NIM · Your audio is discarded after processing</Text>
         </Stack>
       </Stack>
-      {showChat && <AIChat onClose={() => setShowChat(false)} />}
+      {showChat && <AIChat onClose={() => setShowChat(false)} messages={chatMessages} setMessages={setChatMessages} />}
       <Button
         variant="primary"
         style={{
