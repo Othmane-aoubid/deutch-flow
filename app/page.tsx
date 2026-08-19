@@ -21,7 +21,7 @@ function PageContent() {
   const [lessonTitle, setLessonTitle] = useState('A conversation at the bakery')
   const [showChat, setShowChat] = useState(false)
   const [chatCollapsed, setChatCollapsed] = useState(false)
-  const [chatMessages, setChatMessages] = useState<Array<{ role: 'user' | 'assistant', content: string }>>([])
+  const [chatMessages, setChatMessages] = useState<Array<{ role: 'user' | 'assistant', content: string, audio?: string }>>([])
   const [status, setStatus] = useState('Ready when you are')
 
   if (mode === 'teacher') {

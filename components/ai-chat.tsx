@@ -7,8 +7,8 @@ import ReactMarkdown from 'react-markdown'
 
 interface AIChatProps {
   onClose?: () => void
-  messages: Array<{ role: 'user' | 'assistant', content: string }>
-  setMessages: React.Dispatch<React.SetStateAction<Array<{ role: 'user' | 'assistant', content: string }>>>
+  messages: Array<{ role: 'user' | 'assistant', content: string, audio?: string }>
+  setMessages: React.Dispatch<React.SetStateAction<Array<{ role: 'user' | 'assistant', content: string, audio?: string }>>>
   collapsed?: boolean
   onToggleCollapse?: () => void
 }
@@ -16,6 +16,7 @@ interface AIChatProps {
 export function AIChat({ onClose, messages, setMessages, collapsed = false, onToggleCollapse }: AIChatProps) {
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
+  const [generateAudio, setGenerateAudio] = useState(false)
 
   const speakText = (text: string) => {
     if (!window.speechSynthesis) return
@@ -23,6 +24,11 @@ export function AIChat({ onClose, messages, setMessages, collapsed = false, onTo
     utterance.lang = 'de-DE'
     utterance.rate = 0.8
     window.speechSynthesis.speak(utterance)
+  }
+
+  const playAudio = (audioBase64: string) => {
+    const audio = new Audio(audioBase64)
+    audio.play()
   }
 
   const sendMessage = async () => {
@@ -37,12 +43,12 @@ export function AIChat({ onClose, messages, setMessages, collapsed = false, onTo
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: userMessage })
+        body: JSON.stringify({ message: userMessage, generateAudio })
       })
       const data = await response.json()
       
       if (data.response) {
-        setMessages(prev => [...prev, { role: 'assistant', content: data.response }])
+        setMessages(prev => [...prev, { role: 'assistant', content: data.response, audio: data.audio }])
       } else if (data.error) {
         setMessages(prev => [...prev, { role: 'assistant', content: `Error: ${data.error}${data.details ? ` (${data.details})` : ''}` }])
       } else {
@@ -115,15 +121,28 @@ export function AIChat({ onClose, messages, setMessages, collapsed = false, onTo
               }}>
                 <Stack direction="vertical" gap="condensed">
                   {msg.role === 'assistant' && (
-                    <Button 
-                      variant="invisible" 
-                      size="small" 
-                      leadingVisual={<PlayIcon size={12} />}
-                      onClick={() => speakText(msg.content)}
-                      style={{ padding: 2, alignSelf: 'flex-start' }}
-                    >
-                      Listen
-                    </Button>
+                    <Stack direction="horizontal" gap="condensed">
+                      <Button 
+                        variant="invisible" 
+                        size="small" 
+                        leadingVisual={<PlayIcon size={12} />}
+                        onClick={() => speakText(msg.content)}
+                        style={{ padding: 2 }}
+                      >
+                        Listen
+                      </Button>
+                      {msg.audio && (
+                        <Button 
+                          variant="invisible" 
+                          size="small" 
+                          leadingVisual={<PlayIcon size={12} />}
+                          onClick={() => playAudio(msg.audio!)}
+                          style={{ padding: 2 }}
+                        >
+                          Play Audio
+                        </Button>
+                      )}
+                    </Stack>
                   )}
                   {msg.role === 'assistant' ? (
                     <ReactMarkdown
@@ -153,29 +172,42 @@ export function AIChat({ onClose, messages, setMessages, collapsed = false, onTo
           </div>
 
           <div style={{ padding: 12, borderTop: 'var(--borderWidth-thin) solid var(--borderColor-default)', background: 'var(--bgColor-muted)' }}>
-            <Stack direction="horizontal" gap="condensed">
-              <TextInput
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && sendMessage()}
-                placeholder="Ask about German..."
-                size="small"
-                style={{ 
-                  flex: 1,
-                  fontSize: 13,
-                  padding: '6px 10px'
-                }}
-                block
-              />
-              <Button 
-                variant="primary" 
-                size="small"
-                onClick={sendMessage}
-                disabled={!input.trim() || loading}
-                style={{ padding: '6px 12px', minWidth: 60 }}
-              >
-                Send
-              </Button>
+            <Stack direction="vertical" gap="condensed">
+              <Stack direction="horizontal" gap="condensed" align="center">
+                <input 
+                  type="checkbox" 
+                  checked={generateAudio}
+                  onChange={(e) => setGenerateAudio(e.target.checked)}
+                  id="generateAudio"
+                />
+                <label htmlFor="generateAudio" style={{ fontSize: 12, color: 'var(--fgColor-muted)', cursor: 'pointer' }}>
+                  Generate AI audio
+                </label>
+              </Stack>
+              <Stack direction="horizontal" gap="condensed">
+                <TextInput
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && sendMessage()}
+                  placeholder="Ask about German..."
+                  size="small"
+                  style={{ 
+                    flex: 1,
+                    fontSize: 13,
+                    padding: '6px 10px'
+                  }}
+                  block
+                />
+                <Button 
+                  variant="primary" 
+                  size="small"
+                  onClick={sendMessage}
+                  disabled={!input.trim() || loading}
+                  style={{ padding: '6px 12px', minWidth: 60 }}
+                >
+                  Send
+                </Button>
+              </Stack>
             </Stack>
           </div>
         </>
