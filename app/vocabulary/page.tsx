@@ -401,10 +401,11 @@ export default function VocabularyPage() {
                       <Button 
                         variant="default"
                         size="small"
-                        leadingVisual={favoritedIds.has(vocab.id) ? <HeartFillIcon size={14} /> : <HeartIcon size={14} />}
                         onClick={() => addToFavorites(vocab)}
-                        style={favoritedIds.has(vocab.id) ? { color: '#ff0000' } : undefined}
                       >
+                        <span style={{ color: favoritedIds.has(vocab.id) ? '#ff0000' : 'inherit', display: 'flex', alignItems: 'center' }}>
+                          {favoritedIds.has(vocab.id) ? <HeartFillIcon size={14} /> : <HeartIcon size={14} />}
+                        </span>
                         Favorite
                       </Button>
                       <Button 
