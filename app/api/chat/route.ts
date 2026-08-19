@@ -76,29 +76,41 @@ export async function POST(request: Request) {
       try {
         const baseUrl = process.env.NVIDIA_BASE_URL
         const apiKey = process.env.NVIDIA_API_KEY
-        const ttsModel = process.env.NVIDIA_TTS_MODEL ?? 'canada/tts-1'
         
-        const ttsResponse = await fetch(`${baseUrl}/audio/speech`, {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            model: ttsModel,
-            input: responseText,
-            voice: 'alloy'
+        if (!baseUrl || !apiKey) {
+          console.error('NVIDIA credentials not configured for audio generation')
+        } else {
+          console.log('Attempting to generate audio with NVIDIA TTS')
+          const ttsModel = process.env.NVIDIA_TTS_MODEL ?? 'canada/tts-1'
+          
+          const ttsResponse = await fetch(`${baseUrl}/v1/audio/speech`, {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              model: ttsModel,
+              input: responseText,
+              voice: 'alloy'
+            })
           })
-        })
-        
-        if (ttsResponse.ok) {
-          const audioBuffer = await ttsResponse.arrayBuffer()
-          const audioBase = Buffer.from(audioBuffer).toString('base64')
-          audioBase64 = `data:audio/mp3;base64,${audioBase}`
-          console.log('Audio generated successfully')
+          
+          console.log('TTS response status:', ttsResponse.status)
+          
+          if (ttsResponse.ok) {
+            const audioBuffer = await ttsResponse.arrayBuffer()
+            const audioBase = Buffer.from(audioBuffer).toString('base64')
+            audioBase64 = `data:audio/mp3;base64,${audioBase}`
+            console.log('Audio generated successfully, size:', audioBuffer.byteLength)
+          } else {
+            const errorText = await ttsResponse.text()
+            console.error('TTS API error:', ttsResponse.status, errorText)
+          }
         }
       } catch (audioError) {
         console.error('Audio generation error:', audioError)
       }
     }
 
+    console.log('Returning response with audio:', audioBase64 ? 'yes' : 'no')
     return NextResponse.json({ response: responseText, audio: audioBase64 })
   } catch (error) {
     console.error('Chat error:', error)
