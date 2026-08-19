@@ -2,15 +2,17 @@
 
 import { useState } from 'react'
 import { Button, Heading, Label, Stack, Text, TextInput } from '@primer/react'
-import { ArrowRightIcon, XIcon, CommentIcon } from '@primer/octicons-react'
+import { ArrowRightIcon, XIcon, CommentIcon, ChevronLeftIcon, ChevronRightIcon } from '@primer/octicons-react'
 
 interface AIChatProps {
   onClose?: () => void
   messages: Array<{ role: 'user' | 'assistant', content: string }>
   setMessages: React.Dispatch<React.SetStateAction<Array<{ role: 'user' | 'assistant', content: string }>>>
+  collapsed?: boolean
+  onToggleCollapse?: () => void
 }
 
-export function AIChat({ onClose, messages, setMessages }: AIChatProps) {
+export function AIChat({ onClose, messages, setMessages, collapsed = false, onToggleCollapse }: AIChatProps) {
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
 
@@ -49,83 +51,97 @@ export function AIChat({ onClose, messages, setMessages }: AIChatProps) {
       position: 'fixed',
       top: 0,
       right: 0,
-      width: 350,
+      width: collapsed ? 50 : 350,
       height: '100vh',
       background: 'var(--bgColor-default)',
       borderLeft: 'var(--borderWidth-thin) solid var(--borderColor-default)',
       boxShadow: '-4px 0 16px rgba(0,0,0,0.1)',
       display: 'flex',
       flexDirection: 'column',
-      zIndex: 1000
+      zIndex: 1000,
+      transition: 'width 0.3s ease'
     }}>
-      <Stack direction="horizontal" justify="space-between" align="center" style={{ padding: 16, borderBottom: 'var(--borderWidth-thin) solid var(--borderColor-default)', background: 'var(--bgColor-muted)' }}>
-        <Stack direction="horizontal" gap="condensed" align="center">
+      <Stack direction="horizontal" justify="space-between" align="center" style={{ padding: collapsed ? 12 : 16, borderBottom: 'var(--borderWidth-thin) solid var(--borderColor-default)', background: 'var(--bgColor-muted)' }}>
+        {!collapsed ? (
+          <Stack direction="horizontal" gap="condensed" align="center">
+            <span style={{ color: 'var(--fgColor-accent)' }}>💬</span>
+            <Heading as="h3" variant="medium" style={{ fontSize: 14 }}>AI Tutor</Heading>
+          </Stack>
+        ) : (
           <span style={{ color: 'var(--fgColor-accent)' }}>💬</span>
-          <Heading as="h3" variant="medium" style={{ fontSize: 14 }}>AI Tutor</Heading>
-        </Stack>
-        {onClose && (
-          <Button variant="invisible" size="small" onClick={onClose} style={{ padding: 4 }}>
-            <XIcon size={16} />
-          </Button>
         )}
+        <Stack direction="horizontal" gap="condensed">
+          <Button variant="invisible" size="small" onClick={onToggleCollapse} style={{ padding: 4 }}>
+            {collapsed ? <ChevronLeftIcon size={16} /> : <ChevronRightIcon size={16} />}
+          </Button>
+          {onClose && (
+            <Button variant="invisible" size="small" onClick={onClose} style={{ padding: 4 }}>
+              <XIcon size={16} />
+            </Button>
+          )}
+        </Stack>
       </Stack>
 
-      <div style={{ flex: 1, overflowY: 'auto', padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
-        {messages.length === 0 && (
-          <div style={{ textAlign: 'center', padding: '20px 0' }}>
-            <Text style={{ color: 'var(--fgColor-muted)', fontSize: 13, lineHeight: 1.5 }}>
-              Ask me anything about German! I can help with translations, examples, grammar, and vocabulary.
-            </Text>
+      {!collapsed && (
+        <>
+          <div style={{ flex: 1, overflowY: 'auto', padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {messages.length === 0 && (
+              <div style={{ textAlign: 'center', padding: '20px 0' }}>
+                <Text style={{ color: 'var(--fgColor-muted)', fontSize: 13, lineHeight: 1.5 }}>
+                  Ask me anything about German! I can help with translations, examples, grammar, and vocabulary.
+                </Text>
+              </div>
+            )}
+            {messages.map((msg, index) => (
+              <div key={index} style={{ 
+                maxWidth: '85%',
+                padding: '10px 14px',
+                borderRadius: 12,
+                background: msg.role === 'user' ? 'var(--color-accent-fg)' : 'var(--bgColor-muted)',
+                color: msg.role === 'user' ? 'var(--color-accent-emphasis)' : 'var(--fgColor-default)',
+                alignSelf: msg.role === 'user' ? 'flex-end' : 'flex-start',
+                fontSize: 13,
+                lineHeight: 1.4,
+                wordBreak: 'break-word'
+              }}>
+                {msg.content}
+              </div>
+            ))}
+            {loading && (
+              <div style={{ alignSelf: 'flex-start', padding: '10px 14px', background: 'var(--bgColor-muted)', borderRadius: 12 }}>
+                <Text size="small" style={{ color: 'var(--fgColor-muted)' }}>Thinking...</Text>
+              </div>
+            )}
           </div>
-        )}
-        {messages.map((msg, index) => (
-          <div key={index} style={{ 
-            maxWidth: '85%',
-            padding: '10px 14px',
-            borderRadius: 12,
-            background: msg.role === 'user' ? 'var(--color-accent-fg)' : 'var(--bgColor-muted)',
-            color: msg.role === 'user' ? 'var(--color-accent-emphasis)' : 'var(--fgColor-default)',
-            alignSelf: msg.role === 'user' ? 'flex-end' : 'flex-start',
-            fontSize: 13,
-            lineHeight: 1.4,
-            wordBreak: 'break-word'
-          }}>
-            {msg.content}
-          </div>
-        ))}
-        {loading && (
-          <div style={{ alignSelf: 'flex-start', padding: '10px 14px', background: 'var(--bgColor-muted)', borderRadius: 12 }}>
-            <Text size="small" style={{ color: 'var(--fgColor-muted)' }}>Thinking...</Text>
-          </div>
-        )}
-      </div>
 
-      <div style={{ padding: 12, borderTop: 'var(--borderWidth-thin) solid var(--borderColor-default)', background: 'var(--bgColor-muted)' }}>
-        <Stack direction="horizontal" gap="condensed">
-          <TextInput
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && sendMessage()}
-            placeholder="Ask about German..."
-            size="small"
-            style={{ 
-              flex: 1,
-              fontSize: 13,
-              padding: '6px 10px'
-            }}
-            block
-          />
-          <Button 
-            variant="primary" 
-            size="small"
-            onClick={sendMessage}
-            disabled={!input.trim() || loading}
-            style={{ padding: '6px 12px', minWidth: 60 }}
-          >
-            Send
-          </Button>
-        </Stack>
-      </div>
+          <div style={{ padding: 12, borderTop: 'var(--borderWidth-thin) solid var(--borderColor-default)', background: 'var(--bgColor-muted)' }}>
+            <Stack direction="horizontal" gap="condensed">
+              <TextInput
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && sendMessage()}
+                placeholder="Ask about German..."
+                size="small"
+                style={{ 
+                  flex: 1,
+                  fontSize: 13,
+                  padding: '6px 10px'
+                }}
+                block
+              />
+              <Button 
+                variant="primary" 
+                size="small"
+                onClick={sendMessage}
+                disabled={!input.trim() || loading}
+                style={{ padding: '6px 12px', minWidth: 60 }}
+              >
+                Send
+              </Button>
+            </Stack>
+          </div>
+        </>
+      )}
     </div>
   )
 }

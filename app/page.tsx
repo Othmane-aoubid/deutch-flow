@@ -20,6 +20,7 @@ function PageContent() {
   const [recording, setRecording] = useState(false)
   const [lessonTitle, setLessonTitle] = useState('A conversation at the bakery')
   const [showChat, setShowChat] = useState(false)
+  const [chatCollapsed, setChatCollapsed] = useState(false)
   const [chatMessages, setChatMessages] = useState<Array<{ role: 'user' | 'assistant', content: string }>>([])
   const [status, setStatus] = useState('Ready when you are')
 
@@ -54,7 +55,7 @@ function PageContent() {
           <SparkleFillIcon size={16} /><Text size="small">Powered by NVIDIA NIM · Your audio is discarded after processing</Text>
         </Stack>
       </Stack>
-      {showChat && <AIChat onClose={() => setShowChat(false)} messages={chatMessages} setMessages={setChatMessages} />}
+      {showChat && <AIChat onClose={() => setShowChat(false)} messages={chatMessages} setMessages={setChatMessages} collapsed={chatCollapsed} onToggleCollapse={() => setChatCollapsed(!chatCollapsed)} />}
       <Button
         variant="primary"
         style={{
