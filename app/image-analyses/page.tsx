@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { Button, Heading, Label, Stack, Text } from '@primer/react'
-import { ArrowLeftIcon, CheckCircleIcon, PlayIcon, TrashIcon, ChevronDownIcon, ChevronRightIcon } from '@primer/octicons-react'
+import { ArrowLeftIcon, CheckCircleIcon, PlayIcon, TrashIcon, ChevronDownIcon, ChevronRightIcon, HeartIcon } from '@primer/octicons-react'
 import { useRouter } from 'next/navigation'
 import { firebaseAuth } from '@/lib/firebase'
 
@@ -87,6 +87,29 @@ export default function ImageAnalysesPage() {
     })
   }
 
+  const addToFavorites = async (analysis: any) => {
+    try {
+      if (!firebaseAuth) return
+      const user = firebaseAuth.currentUser
+      if (!user) return
+      const token = await user.getIdToken()
+      const headers: Record<string, string> = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }
+      await fetch('/api/favorites', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          type: 'analysis',
+          german: analysis.germanText,
+          english: analysis.translation,
+          description: analysis.description,
+          learningLevel: analysis.learningLevel
+        })
+      })
+    } catch (error) {
+      console.error('Failed to add to favorites:', error)
+    }
+  }
+
   return (
     <main style={{ minHeight: '100vh' }}>
       <div style={{ maxWidth: 1160, margin: '0 auto', padding: '40px 28px 80px' }}>
@@ -134,14 +157,24 @@ export default function ImageAnalysesPage() {
                           <Label variant="secondary">{analysis.learningLevel}</Label>
                         )}
                       </Stack>
-                      <Button 
-                        variant="danger" 
-                        size="small" 
-                        leadingVisual={<TrashIcon size={14} />}
-                        onClick={() => deleteAnalysis(analysis.id)}
-                      >
-                        Delete
-                      </Button>
+                      <Stack direction="horizontal" gap="condensed">
+                        <Button 
+                          variant="default"
+                          size="small"
+                          leadingVisual={<HeartIcon size={14} />}
+                          onClick={() => addToFavorites(analysis)}
+                        >
+                          Favorite
+                        </Button>
+                        <Button 
+                          variant="danger" 
+                          size="small" 
+                          leadingVisual={<TrashIcon size={14} />}
+                          onClick={() => deleteAnalysis(analysis.id)}
+                        >
+                          Delete
+                        </Button>
+                      </Stack>
                     </Stack>
 
                     {isExpanded && (
