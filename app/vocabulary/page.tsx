@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { Button, Heading, Label, Stack, Text, FormControl, TextInput } from '@primer/react'
-import { ArrowLeftIcon, CheckCircleIcon, XCircleIcon, PlayIcon, TrashIcon, SyncIcon, ArrowRightIcon } from '@primer/octicons-react'
+import { ArrowLeftIcon, CheckCircleIcon, XCircleIcon, PlayIcon, TrashIcon, SyncIcon, ArrowRightIcon, HeartIcon } from '@primer/octicons-react'
 import { useRouter } from 'next/navigation'
 import { firebaseAuth } from '@/lib/firebase'
 
@@ -102,6 +102,29 @@ export default function VocabularyPage() {
       loadVocabulary()
     } catch (error) {
       console.error('Failed to delete vocabulary:', error)
+    }
+  }
+
+  const addToFavorites = async (vocab: any) => {
+    try {
+      if (!firebaseAuth) return
+      const user = firebaseAuth.currentUser
+      if (!user) return
+      const token = await user.getIdToken()
+      const headers: Record<string, string> = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }
+      await fetch('/api/favorites', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          type: 'vocabulary',
+          german: vocab.german,
+          english: vocab.english,
+          context: vocab.context,
+          learningLevel: vocab.learningLevel
+        })
+      })
+    } catch (error) {
+      console.error('Failed to add to favorites:', error)
     }
   }
 
@@ -300,6 +323,14 @@ export default function VocabularyPage() {
                         onClick={() => speakWord(vocab.german)}
                       >
                         Listen
+                      </Button>
+                      <Button 
+                        variant="default"
+                        size="small"
+                        leadingVisual={<HeartIcon size={14} />}
+                        onClick={() => addToFavorites(vocab)}
+                      >
+                        Favorite
                       </Button>
                       <Button 
                         variant={vocab.learned ? 'default' : 'primary'}
