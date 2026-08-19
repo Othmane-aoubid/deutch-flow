@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { Button, Heading, Label, Stack, Text } from '@primer/react'
-import { ArrowLeftIcon, CheckCircleIcon, PlayIcon, TrashIcon, ChevronDownIcon, ChevronRightIcon, HeartIcon } from '@primer/octicons-react'
+import { ArrowLeftIcon, CheckCircleIcon, PlayIcon, TrashIcon, ChevronDownIcon, ChevronRightIcon, HeartIcon, HeartFillIcon } from '@primer/octicons-react'
 import { useRouter } from 'next/navigation'
 import { firebaseAuth } from '@/lib/firebase'
 
@@ -12,6 +12,8 @@ export default function ImageAnalysesPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
+  const [favoritedIds, setFavoritedIds] = useState<Set<string>>(new Set())
+  const [showFavoriteToast, setShowFavoriteToast] = useState(false)
 
   useEffect(() => {
     loadAnalyses()
@@ -94,7 +96,8 @@ export default function ImageAnalysesPage() {
       if (!user) return
       const token = await user.getIdToken()
       const headers: Record<string, string> = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }
-      await fetch('/api/favorites', {
+      
+      const response = await fetch('/api/favorites', {
         method: 'POST',
         headers,
         body: JSON.stringify({
@@ -105,6 +108,12 @@ export default function ImageAnalysesPage() {
           learningLevel: analysis.learningLevel
         })
       })
+      
+      if (response.ok) {
+        setFavoritedIds(prev => new Set([...prev, analysis.id]))
+        setShowFavoriteToast(true)
+        setTimeout(() => setShowFavoriteToast(false), 2000)
+      }
     } catch (error) {
       console.error('Failed to add to favorites:', error)
     }
@@ -112,6 +121,27 @@ export default function ImageAnalysesPage() {
 
   return (
     <main style={{ minHeight: '100vh' }}>
+      {showFavoriteToast && (
+        <div style={{
+          position: 'fixed',
+          bottom: 20,
+          left: '50%',
+          transform: 'translateX(-50%)',
+          background: 'var(--color-success-fg)',
+          color: 'var(--color-success-emphasis)',
+          padding: '12px 24px',
+          borderRadius: 8,
+          boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+          zIndex: 1000,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          fontSize: 14
+        }}>
+          <HeartFillIcon size={16} />
+          <Text>Added to favorites</Text>
+        </div>
+      )}
       <div style={{ maxWidth: 1160, margin: '0 auto', padding: '40px 28px 80px' }}>
         <Stack direction="vertical" gap="spacious">
           <Stack direction="horizontal" justify="space-between" align="center">
@@ -161,8 +191,9 @@ export default function ImageAnalysesPage() {
                         <Button 
                           variant="default"
                           size="small"
-                          leadingVisual={<HeartIcon size={14} />}
+                          leadingVisual={favoritedIds.has(id) ? <HeartFillIcon size={14} /> : <HeartIcon size={14} />}
                           onClick={() => addToFavorites(analysis)}
+                          style={favoritedIds.has(id) ? { color: 'var(--fgColor-accent)' } : undefined}
                         >
                           Favorite
                         </Button>
