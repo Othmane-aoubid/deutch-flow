@@ -5,6 +5,7 @@ import { Button, Heading, Label, Stack, Text } from '@primer/react'
 import { ArrowLeftIcon, HeartIcon, HeartFillIcon, PlayIcon, TrashIcon } from '@primer/octicons-react'
 import { useRouter } from 'next/navigation'
 import { firebaseAuth } from '@/lib/firebase'
+import { apiFetch } from '@/lib/api'
 
 export default function FavoritesPage() {
   const router = useRouter()
@@ -29,9 +30,7 @@ export default function FavoritesPage() {
         setLoading(false)
         return
       }
-      const token = await user.getIdToken()
-      const headers: Record<string, string> = { 'Authorization': `Bearer ${token}` }
-      const response = await fetch('/api/favorites', { headers })
+      const response = await apiFetch('/api/favorites')
       
       if (!response.ok) {
         const text = await response.text()
@@ -66,11 +65,7 @@ export default function FavoritesPage() {
   const removeFavorite = async (id: string) => {
     try {
       if (!firebaseAuth) return
-      const user = firebaseAuth.currentUser
-      if (!user) return
-      const token = await user.getIdToken()
-      const headers: Record<string, string> = { 'Authorization': `Bearer ${token}` }
-      await fetch(`/api/favorites/${id}`, { method: 'DELETE', headers })
+      await apiFetch(`/api/favorites/${id}`, { method: 'DELETE' })
       loadFavorites()
     } catch (err) {
       console.error('Failed to remove favorite')

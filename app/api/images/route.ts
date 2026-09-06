@@ -1,7 +1,11 @@
 import { NextResponse } from 'next/server'
+import { verifyFirebaseToken } from '@/lib/firebase-admin'
 
 export async function POST(request: Request) {
   try {
+    const user = await verifyFirebaseToken(request)
+    if (!user) return NextResponse.json({ error: 'Sign-in required.' }, { status: 401 })
+
     const formData = await request.formData()
     const image = formData.get('image')
     const action = formData.get('action') as string

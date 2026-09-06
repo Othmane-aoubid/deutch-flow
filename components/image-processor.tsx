@@ -6,6 +6,7 @@ import { ImageIcon, UploadIcon, CheckCircleIcon, XCircleIcon, PlayIcon, TrashIco
 import { ExerciseMode } from './exercise-mode'
 import { useRouter } from 'next/navigation'
 import { firebaseAuth } from '@/lib/firebase'
+import { apiFetch } from '@/lib/api'
 
 interface ImageProcessorProps {
   onImageProcessed?: (result: any) => void
@@ -25,12 +26,8 @@ export function ImageProcessor({ onImageProcessed, maxImages = 5 }: ImageProcess
 
   const loadSavedAnalyses = async () => {
     try {
-      if (!firebaseAuth) return
-      const user = firebaseAuth.currentUser
-      if (!user) return
-      const token = await user.getIdToken()
-      const headers: Record<string, string> = { 'Authorization': `Bearer ${token}` }
-      const response = await fetch('/api/image-analysis', { headers })
+      if (!firebaseAuth?.currentUser) return
+      const response = await apiFetch('/api/image-analysis')
       const data = await response.json()
       if (data.analyses) {
         setResults(data.analyses.map((analysis: any) => ({ success: true, analysis })))
@@ -52,7 +49,7 @@ export function ImageProcessor({ onImageProcessed, maxImages = 5 }: ImageProcess
         formData.append('image', file)
         formData.append('action', 'analyze')
 
-        const response = await fetch('/api/images', {
+        const response = await apiFetch('/api/images', {
           method: 'POST',
           body: formData,
         })
@@ -62,7 +59,6 @@ export function ImageProcessor({ onImageProcessed, maxImages = 5 }: ImageProcess
         }
 
         const result = await response.json()
-        console.log('API result:', result)
         
         // Handle both rawAnalysis and analysis responses
         let analysisToSave = result.analysis
@@ -87,38 +83,28 @@ export function ImageProcessor({ onImageProcessed, maxImages = 5 }: ImageProcess
           const hasContent = analysisToSave.germanText || analysisToSave.description || (analysisToSave.vocabulary && analysisToSave.vocabulary.length > 0)
           
           if (!hasContent) {
-            console.log('No meaningful content to save, skipping Firestore save')
             return result
           }
           
           try {
-            if (!firebaseAuth) {
-              console.error('Firebase not configured')
+            if (!firebaseAuth?.currentUser) {
+              console.error('Firebase not configured or not signed in')
               return result
             }
-            const user = firebaseAuth.currentUser
-            if (!user) {
-              console.error('No authenticated user')
-              return result
-            }
-            const token = await user.getIdToken()
-            const headers: Record<string, string> = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }
-            
+
             // Save analysis
-            const analysisResponse = await fetch('/api/image-analysis', {
+            const analysisResponse = await apiFetch('/api/image-analysis', {
               method: 'POST',
-              headers,
+              headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify(analysisToSave)
             })
-            console.log('Analysis save response:', analysisResponse.status)
-            
+
             // Save vocabulary to Firestore
             if (analysisToSave.vocabulary && Array.isArray(analysisToSave.vocabulary) && analysisToSave.vocabulary.length > 0) {
-              console.log('Saving vocabulary items:', analysisToSave.vocabulary.length)
               for (const vocab of analysisToSave.vocabulary) {
-                const vocabResponse = await fetch('/api/vocabulary', {
+                const vocabResponse = await apiFetch('/api/vocabulary', {
                   method: 'POST',
-                  headers,
+                  headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({
                     german: vocab.german || vocab.word,
                     english: vocab.english || vocab.translation,
@@ -127,7 +113,6 @@ export function ImageProcessor({ onImageProcessed, maxImages = 5 }: ImageProcess
                     source: 'image'
                   })
                 })
-                console.log('Vocabulary save response:', vocabResponse.status)
                 if (!vocabResponse.ok) {
                   const error = await vocabResponse.text()
                   console.error('Failed to save vocabulary item:', error)
@@ -170,14 +155,10 @@ export function ImageProcessor({ onImageProcessed, maxImages = 5 }: ImageProcess
 
   const saveAnalysis = async (analysis: any) => {
     try {
-      if (!firebaseAuth) return
-      const user = firebaseAuth.currentUser
-      if (!user) return
-      const token = await user.getIdToken()
-      const headers: Record<string, string> = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }
-      await fetch('/api/image-analysis', {
+      if (!firebaseAuth?.currentUser) return
+      await apiFetch('/api/image-analysis', {
         method: 'POST',
-        headers,
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(analysis)
       })
     } catch (error) {

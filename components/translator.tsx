@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { Button, FormControl, Heading, Label, Stack, Text, TextInput } from '@primer/react'
+import { apiFetch } from '@/lib/api'
 
 interface TranslatorProps {
   text?: string
@@ -24,7 +25,7 @@ export function Translator({ text, onTranslation }: TranslatorProps) {
     setTranslation('')
     
     try {
-      const response = await fetch('/api/translate', {
+      const response = await apiFetch('/api/translate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text: inputText, targetLanguage })

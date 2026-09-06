@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { Button, FormControl, Heading, Label, Stack, Text, TextInput } from '@primer/react'
 import { CheckCircleIcon, XCircleIcon, ArrowRightIcon } from '@primer/octicons-react'
 import { firebaseAuth } from '@/lib/firebase'
+import { apiFetch } from '@/lib/api'
 
 interface ExerciseModeProps {
   vocabulary?: any[]
@@ -33,12 +34,8 @@ export function ExerciseMode({ vocabulary: propVocabulary = [], onBack }: Exerci
   const loadVocabulary = async () => {
     setLoading(true)
     try {
-      if (!firebaseAuth) return
-      const user = firebaseAuth.currentUser
-      if (!user) return
-      const token = await user.getIdToken()
-      const headers: Record<string, string> = { 'Authorization': `Bearer ${token}` }
-      const response = await fetch('/api/vocabulary', { headers })
+      if (!firebaseAuth?.currentUser) return
+      const response = await apiFetch('/api/vocabulary')
       const data = await response.json()
       if (data.vocabulary) {
         setVocabulary(data.vocabulary)
@@ -52,12 +49,8 @@ export function ExerciseMode({ vocabulary: propVocabulary = [], onBack }: Exerci
 
   const loadProgress = async () => {
     try {
-      if (!firebaseAuth) return
-      const user = firebaseAuth.currentUser
-      if (!user) return
-      const token = await user.getIdToken()
-      const headers: Record<string, string> = { 'Authorization': `Bearer ${token}` }
-      const response = await fetch('/api/exercise-progress', { headers })
+      if (!firebaseAuth?.currentUser) return
+      const response = await apiFetch('/api/exercise-progress')
       const data = await response.json()
       if (data.score !== undefined) {
         setScore(data.score)
@@ -70,14 +63,10 @@ export function ExerciseMode({ vocabulary: propVocabulary = [], onBack }: Exerci
 
   const saveProgress = async (newScore: number, newTotal: number, newCorrect: number) => {
     try {
-      if (!firebaseAuth) return
-      const user = firebaseAuth.currentUser
-      if (!user) return
-      const token = await user.getIdToken()
-      const headers: Record<string, string> = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }
-      await fetch('/api/exercise-progress', {
+      if (!firebaseAuth?.currentUser) return
+      await apiFetch('/api/exercise-progress', {
         method: 'POST',
-        headers,
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ score: newScore, total: newTotal, correct: newCorrect })
       })
     } catch (error) {

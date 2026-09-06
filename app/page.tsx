@@ -1,14 +1,16 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Button, Heading, Label, Link, Stack, Text, TextInput } from '@primer/react'
 import { BookIcon, ChevronRightIcon, GraphIcon, UnmuteIcon, PlayIcon, SparkleFillIcon, ArrowLeftIcon, CommentIcon, HeartIcon, UploadIcon } from '@primer/octicons-react'
 import { AuthGate, SignOutButton } from '@/components/auth-gate'
+import { apiFetch } from '@/lib/api'
 import { ImageProcessor } from '@/components/image-processor'
 import { Translator } from '@/components/translator'
 import { AIChat } from '@/components/ai-chat'
 import { useRouter } from 'next/navigation'
 import { firebaseAuth } from '@/lib/firebase'
+import { onAuthStateChanged } from 'firebase/auth'
 
 export default function Page() {
   return <AuthGate><PageContent /></AuthGate>
@@ -88,11 +90,83 @@ function ModeCard({ icon, label, title, description, action, onClick }: { icon: 
   return <div style={{ flex: '1 1 340px', maxWidth: 480, border: 'var(--borderWidth-thin) solid var(--borderColor-default)', borderRadius: 12, padding: 28, background: 'var(--bgColor-muted)', boxShadow: 'var(--shadow-floating-medium)' }}><Stack direction="vertical" gap="normal"><Stack direction="horizontal" align="center" justify="space-between"><span style={{ color: 'var(--fgColor-accent)' }}>{icon}</span><Label variant="secondary">{label}</Label></Stack><Heading as="h2" variant="medium">{title}</Heading><Text style={{ color: 'var(--fgColor-muted)', minHeight: 48 }}>{description}</Text><Button variant="primary" trailingAction={ChevronRightIcon} onClick={onClick}>{action}</Button></Stack></div>
 }
 
+function LessonAnalysis({ analysis }: { analysis: any }) {
+  const speakText = (text: string) => {
+    if (!window.speechSynthesis) return
+    const utterance = new SpeechSynthesisUtterance(text)
+    utterance.lang = 'de-DE'
+    utterance.rate = 0.8
+    window.speechSynthesis.speak(utterance)
+  }
+
+  if (typeof analysis === 'string' || analysis?.rawResponse) {
+    return <Text size="small" style={{ whiteSpace: 'pre-wrap' }}>{typeof analysis === 'string' ? analysis : analysis.rawResponse}</Text>
+  }
+  const corrections = Array.isArray(analysis?.corrections) ? analysis.corrections : []
+  const vocabulary = Array.isArray(analysis?.vocabulary) ? analysis.vocabulary : []
+  const grammarPatterns = Array.isArray(analysis?.grammarPatterns) ? analysis.grammarPatterns : []
+  const nextSteps = Array.isArray(analysis?.nextSteps) ? analysis.nextSteps : []
+  if (!corrections.length && !vocabulary.length && !grammarPatterns.length && !nextSteps.length) {
+    return <Text size="small" style={{ whiteSpace: 'pre-wrap' }}>{JSON.stringify(analysis, null, 2)}</Text>
+  }
+  return (
+    <Stack direction="vertical" gap="normal">
+      {corrections.length > 0 && (
+        <Stack direction="vertical" gap="condensed">
+          <Label variant="attention">Corrections ({corrections.length})</Label>
+          {corrections.map((c: any, i: number) => (
+            <div key={i} style={{ border: 'var(--borderWidth-thin) solid var(--borderColor-muted)', borderRadius: 8, padding: 12, background: 'var(--bgColor-default)' }}>
+              <Stack direction="horizontal" justify="space-between" align="center">
+                <Text size="small"><del style={{ color: 'var(--fgColor-danger)' }}>{c.original}</del> → <strong style={{ color: 'var(--fgColor-success)' }}>{c.corrected}</strong></Text>
+                <Button variant="invisible" size="small" leadingVisual={<PlayIcon size={14} />} onClick={() => speakText(c.corrected)} aria-label="Listen" />
+              </Stack>
+              {c.explanation && <Text size="small" style={{ color: 'var(--fgColor-muted)' }}>{c.explanation}</Text>}
+            </div>
+          ))}
+        </Stack>
+      )}
+      {vocabulary.length > 0 && (
+        <Stack direction="vertical" gap="condensed">
+          <Label variant="accent">Vocabulary ({vocabulary.length})</Label>
+          {vocabulary.map((v: any, i: number) => (
+            <Stack key={i} direction="horizontal" justify="space-between" align="center" style={{ borderBottom: 'var(--borderWidth-thin) solid var(--borderColor-muted)', paddingBottom: 4 }}>
+              <Text size="small"><strong>{v.word || v.german}</strong> — {v.translation || v.english}{v.level ? ` (${v.level})` : ''}</Text>
+              <Button variant="invisible" size="small" leadingVisual={<PlayIcon size={14} />} onClick={() => speakText(v.word || v.german)} aria-label="Listen" />
+            </Stack>
+          ))}
+        </Stack>
+      )}
+      {grammarPatterns.length > 0 && (
+        <Stack direction="vertical" gap="condensed">
+          <Label variant="secondary">Grammar patterns</Label>
+          {grammarPatterns.map((g: any, i: number) => (
+            <Text key={i} size="small"><strong>{g.pattern}</strong>{g.explanation ? ` — ${g.explanation}` : ''}</Text>
+          ))}
+        </Stack>
+      )}
+      {nextSteps.length > 0 && (
+        <Stack direction="vertical" gap="condensed">
+          <Label variant="success">Next steps</Label>
+          {nextSteps.map((s: string, i: number) => <Text key={i} size="small">• {s}</Text>)}
+        </Stack>
+      )}
+    </Stack>
+  )
+}
+
+function formatDuration(seconds: number) {
+  return `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`
+}
+
 function TeacherMode({ recording, setRecording, lessonTitle, setLessonTitle, status, setStatus, onBack }: { recording: boolean; setRecording: (value: boolean) => void; lessonTitle: string; setLessonTitle: (value: string) => void; status: string; setStatus: (value: string) => void; onBack: () => void }) {
   const [transcript, setTranscript] = useState('')
   const [analysis, setAnalysis] = useState<any>(null)
   const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null)
   const [audioChunks, setAudioChunks] = useState<Blob[]>([])
+  const [level, setLevel] = useState('A2')
+  const [recordingSeconds, setRecordingSeconds] = useState(0)
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const startedAtRef = useRef<number>(0)
 
   const startRecording = async () => {
     try {
@@ -104,64 +178,83 @@ function TeacherMode({ recording, setRecording, lessonTitle, setLessonTitle, sta
       recorder.onstop = async () => {
         setAudioChunks(chunks)
         const audioBlob = new Blob(chunks, { type: 'audio/webm' })
-        
-        // Convert audio to base64 for storage
-        const audioBase64 = await new Promise<string>((resolve) => {
-          const reader = new FileReader()
-          reader.onloadend = () => resolve(reader.result as string)
-          reader.readAsDataURL(audioBlob)
-        })
-        
+        const duration = formatDuration(Math.max(1, Math.round((Date.now() - startedAtRef.current) / 1000)))
+
         setStatus('Processing audio...')
         const formData = new FormData()
         formData.append('audio', audioBlob)
-        
+
         try {
-          const asrResponse = await fetch('/api/asr', { method: 'POST', body: formData })
+          const asrResponse = await apiFetch('/api/asr', { method: 'POST', body: formData })
           const asrResult = await asrResponse.json()
-          
+
           if (asrResult.segments && asrResult.segments.length > 0) {
             const fullTranscript = asrResult.segments.map((s: any) => s.text).join(' ')
             setTranscript(fullTranscript)
             setStatus('Analyzing transcript...')
-            
-            const analyzeResponse = await fetch('/api/analyze', {
+
+            const analyzeResponse = await apiFetch('/api/analyze', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ transcript: fullTranscript, level: 'A2' })
+              body: JSON.stringify({ transcript: fullTranscript, level })
             })
             const analyzeResult = await analyzeResponse.json()
-            setAnalysis(analyzeResult)
-            setStatus('Analysis complete')
-            
-            // Save lesson to Firestore with audio
-            const saveResponse = await fetch('/api/lessons', {
+            if (!analyzeResponse.ok) {
+              setStatus(`Analysis failed: ${analyzeResult.error || 'Unknown error'}`)
+              stream.getTracks().forEach(track => track.stop())
+              return
+            }
+            setAnalysis(analyzeResult.analysis ?? analyzeResult)
+            setStatus('Saving lesson...')
+
+            const saveResponse = await apiFetch('/api/lessons', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ 
-                title: lessonTitle, 
-                transcript: fullTranscript, 
-                analysis: analyzeResult, 
-                level: 'A2', 
-                duration: '00:00',
-                audio: audioBase64
+              body: JSON.stringify({
+                title: lessonTitle,
+                transcript: fullTranscript,
+                analysis: analyzeResult.analysis ?? analyzeResult,
+                level,
+                duration
               })
             })
             if (!saveResponse.ok) {
-              const errorData = await saveResponse.json()
+              const errorData = await saveResponse.json().catch(() => ({}))
               setStatus(`Save failed: ${errorData.error || 'Unknown error'}`)
+              stream.getTracks().forEach(track => track.stop())
+              return
             }
+            const { lesson } = await saveResponse.json()
+
+            // Audio goes to Firebase Storage (no 1 MiB Firestore doc limit)
+            const audioForm = new FormData()
+            audioForm.append('audio', audioBlob)
+            audioForm.append('lessonId', lesson.id)
+            const audioResponse = await apiFetch('/api/lessons/audio', { method: 'POST', body: audioForm })
+            if (!audioResponse.ok) {
+              const errorData = await audioResponse.json().catch(() => ({}))
+              setStatus(`Saved, but audio upload failed: ${errorData.error || 'Unknown error'}`)
+            } else {
+              setStatus('Lesson saved')
+            }
+          } else {
+            setStatus('No speech detected in the recording')
           }
         } catch (error) {
           setStatus('Processing failed')
         }
-        
+
         stream.getTracks().forEach(track => track.stop())
       }
 
       recorder.start()
       setMediaRecorder(recorder)
       setRecording(true)
+      setRecordingSeconds(0)
+      startedAtRef.current = Date.now()
+      timerRef.current = setInterval(() => {
+        setRecordingSeconds(Math.floor((Date.now() - startedAtRef.current) / 1000))
+      }, 1000)
       setStatus('Recording started')
     } catch (error) {
       setStatus('Microphone access denied')
@@ -173,6 +266,7 @@ function TeacherMode({ recording, setRecording, lessonTitle, setLessonTitle, sta
     if (mediaRecorder) {
       mediaRecorder.stop()
       setRecording(false)
+      if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null }
       setStatus('Recording stopped')
     }
   }
@@ -193,7 +287,12 @@ function TeacherMode({ recording, setRecording, lessonTitle, setLessonTitle, sta
           <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.1fr) minmax(300px, .9fr)', gap: 24 }}>
             <section style={{ border: 'var(--borderWidth-thin) solid var(--borderColor-default)', borderRadius: 12, padding: 28, background: 'var(--bgColor-muted)' }}>
               <Stack direction="vertical" gap="normal">
-                <TextInput aria-label="Lesson title" value={lessonTitle} onChange={(e) => setLessonTitle(e.target.value)} />
+                <Stack direction="horizontal" gap="condensed">
+                  <TextInput aria-label="Lesson title" value={lessonTitle} onChange={(e) => setLessonTitle(e.target.value)} style={{ flex: 1 }} />
+                  <select aria-label="CEFR level" value={level} onChange={(e) => setLevel(e.target.value)} style={{ padding: '6px 10px', borderRadius: 6, border: 'var(--borderWidth-thin) solid var(--borderColor-default)', background: 'var(--bgColor-default)', color: 'var(--fgColor-default)' }}>
+                    {['A1', 'A2', 'B1', 'B2', 'C1', 'C2'].map((l) => <option key={l} value={l}>{l}</option>)}
+                  </select>
+                </Stack>
                 <div style={{ minHeight: 260, border: 'var(--borderWidth-thin) solid var(--borderColor-muted)', borderRadius: 8, padding: 20, background: 'var(--bgColor-default)' }}>
                   <Stack direction="vertical" gap="normal">
                     <Stack direction="horizontal" gap="condensed" align="center">
@@ -205,7 +304,10 @@ function TeacherMode({ recording, setRecording, lessonTitle, setLessonTitle, sta
                   </Stack>
                 </div>
                 <Stack direction="horizontal" justify="space-between" align="center">
-                  <Text size="small" style={{ color: 'var(--fgColor-muted)' }}>{status}</Text>
+                  <Stack direction="horizontal" gap="condensed" align="center">
+                    <Text size="small" style={{ color: 'var(--fgColor-muted)' }}>{status}</Text>
+                    {recording && <Text size="small" style={{ color: 'var(--fgColor-open)' }}>{formatDuration(recordingSeconds)}</Text>}
+                  </Stack>
                   <Button variant="primary" leadingVisual={<UnmuteIcon />} onClick={recording ? stopRecording : startRecording}>{recording ? 'Stop recording' : 'Start recording'}</Button>
                 </Stack>
               </Stack>
@@ -217,9 +319,7 @@ function TeacherMode({ recording, setRecording, lessonTitle, setLessonTitle, sta
                   <Text style={{ color: 'var(--fgColor-muted)' }}>Corrections and learning suggestions will appear here.</Text>
                   <div style={{ minHeight: 200, border: 'var(--borderWidth-thin) solid var(--borderColor-muted)', borderRadius: 8, padding: 16, background: 'var(--bgColor-default)' }}>
                     {analysis ? (
-                      <Text size="small" style={{ color: 'var(--fgColor-muted)' }}>
-                        {JSON.stringify(analysis, null, 2)}
-                      </Text>
+                      <LessonAnalysis analysis={analysis} />
                     ) : (
                       <Text size="small" style={{ color: 'var(--fgColor-muted)' }}>Analysis will be generated when you stop recording.</Text>
                     )}
@@ -242,30 +342,22 @@ function LearnerMode({ onBack }: { onBack: () => void }) {
   const [expandedLesson, setExpandedLesson] = useState<string | null>(null)
 
   useEffect(() => {
-    const loadLessons = async () => {
+    if (!firebaseAuth) { setLoading(false); return }
+    // Subscribe to auth state so a refresh mid-session still loads lessons.
+    const unsubscribe = onAuthStateChanged(firebaseAuth, async (user) => {
+      if (!user) { setLessons([]); setLoading(false); return }
       try {
-        if (!firebaseAuth) return
-        const user = firebaseAuth.currentUser
-        if (!user) return
-        const token = await user.getIdToken()
-        const headers: Record<string, string> = { 'Authorization': `Bearer ${token}` }
-        const res = await fetch('/api/lessons', { headers })
-        
-        if (!res.ok) {
-          const text = await res.text()
-          console.error('API error response:', text)
-          throw new Error(`Failed to fetch lessons: ${res.status}`)
-        }
-        
+        const res = await apiFetch('/api/lessons')
+        if (!res.ok) throw new Error(`Failed to fetch lessons: ${res.status}`)
         const data = await res.json()
-        if (data.lessons) setLessons(data.lessons)
+        setLessons(data.lessons ?? [])
       } catch (error) {
         console.error('Failed to load lessons:', error)
       } finally {
         setLoading(false)
       }
-    }
-    loadLessons()
+    })
+    return () => unsubscribe()
   }, [])
 
   const speakText = (text: string) => {
@@ -278,12 +370,7 @@ function LearnerMode({ onBack }: { onBack: () => void }) {
 
   const deleteLesson = async (lessonId: string) => {
     try {
-      if (!firebaseAuth) return
-      const user = firebaseAuth.currentUser
-      if (!user) return
-      const token = await user.getIdToken()
-      const headers: Record<string, string> = { 'Authorization': `Bearer ${token}` }
-      await fetch(`/api/lessons/${lessonId}`, { method: 'DELETE', headers })
+      await apiFetch(`/api/lessons/${lessonId}`, { method: 'DELETE' })
       setLessons(prev => prev.filter(l => l.id !== lessonId))
     } catch (error) {
       console.error('Failed to delete lesson')
@@ -349,14 +436,14 @@ function LearnerMode({ onBack }: { onBack: () => void }) {
                       <Stack direction="horizontal" justify="space-between" align="center" style={{ marginBottom: 8 }}>
                         <Text size="small" style={{ color: 'var(--fgColor-muted)' }}>Transcript:</Text>
                         <Stack direction="horizontal" gap="condensed">
-                          {lesson.audio && (
+                          {(lesson.audioPath || lesson.audio) && (
                             <Button 
                               variant="default" 
                               size="small" 
                               leadingVisual={<PlayIcon size={14} />}
                               onClick={() => {
-                                const audio = new Audio(lesson.audio)
-                                audio.play()
+                                const src = lesson.audioPath ? `/api/lessons/audio?path=${encodeURIComponent(lesson.audioPath)}` : lesson.audio
+                                new Audio(src).play()
                               }}
                             >
                               Play Recording
@@ -376,7 +463,7 @@ function LearnerMode({ onBack }: { onBack: () => void }) {
                       {lesson.analysis && (
                         <div style={{ marginTop: 16, padding: 16, background: 'var(--bgColor-muted)', borderRadius: 8 }}>
                           <Text size="small" style={{ color: 'var(--fgColor-muted)', marginBottom: 8 }}>AI Analysis:</Text>
-                          <Text size="small" style={{ whiteSpace: 'pre-wrap' }}>{typeof lesson.analysis === 'string' ? lesson.analysis : JSON.stringify(lesson.analysis, null, 2)}</Text>
+                          <LessonAnalysis analysis={lesson.analysis} />
                         </div>
                       )}
                     </div>

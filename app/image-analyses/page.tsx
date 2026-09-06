@@ -5,6 +5,7 @@ import { Button, Heading, Label, Stack, Text } from '@primer/react'
 import { ArrowLeftIcon, CheckCircleIcon, PlayIcon, TrashIcon, ChevronDownIcon, ChevronRightIcon, HeartIcon, HeartFillIcon } from '@primer/octicons-react'
 import { useRouter } from 'next/navigation'
 import { firebaseAuth } from '@/lib/firebase'
+import { apiFetch } from '@/lib/api'
 
 export default function ImageAnalysesPage() {
   const router = useRouter()
@@ -32,10 +33,8 @@ export default function ImageAnalysesPage() {
         setLoading(false)
         return
       }
-      const token = await user.getIdToken()
-      const headers: Record<string, string> = { 'Authorization': `Bearer ${token}` }
       
-      const response = await fetch('/api/image-analysis', { headers })
+      const response = await apiFetch('/api/image-analysis')
       
       if (!response.ok) {
         const text = await response.text()
@@ -52,12 +51,12 @@ export default function ImageAnalysesPage() {
         setAnalyses([])
       }
       
-      const favResponse = await fetch('/api/favorites', { headers })
+      const favResponse = await apiFetch('/api/favorites')
       if (favResponse.ok) {
         const favData = await favResponse.json()
         if (favData.favorites) {
           const analysisIds = new Set<string>(
-            favData.favorites
+           favData.favorites
               .filter((f: any) => f.type === 'analysis')
               .map((f: any) => f.german as string)
           )
@@ -83,11 +82,7 @@ export default function ImageAnalysesPage() {
   const deleteAnalysis = async (id: string) => {
     try {
       if (!firebaseAuth) return
-      const user = firebaseAuth.currentUser
-      if (!user) return
-      const token = await user.getIdToken()
-      const headers: Record<string, string> = { 'Authorization': `Bearer ${token}` }
-      await fetch(`/api/image-analysis/${id}`, { method: 'DELETE', headers })
+      await apiFetch(`/api/image-analysis/${id}`, { method: 'DELETE' })
       loadAnalyses()
     } catch (err) {
       console.error('Failed to delete')
@@ -106,14 +101,23 @@ export default function ImageAnalysesPage() {
   const addToFavorites = async (analysis: any) => {
     try {
       if (!firebaseAuth) return
-      const user = firebaseAuth.currentUser
-      if (!user) return
-      const token = await user.getIdToken()
-      const headers: Record<string, string> = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }
-      
-      const response = await fetch('/api/favorites', {
+      if (favoritedIds.has(analysis.germanText)) {
+        // Unfavorite: remove the existing favorite for this text.
+        const favResponse = await apiFetch('/api/favorites')
+        const favData = await favResponse.json()
+        const match = (favData.favorites ?? []).find((f: any) => f.type === 'analysis' && f.german === analysis.germanText)
+        if (match) await apiFetch(`/api/favorites/${match.id}`, { method: 'DELETE' })
+        setFavoritedIds(prev => {
+          const next = new Set(prev)
+          next.delete(analysis.germanText)
+          return next
+        })
+        return
+      }
+
+      const response = await apiFetch('/api/favorites', {
         method: 'POST',
-        headers,
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           type: 'analysis',
           german: analysis.germanText,
@@ -129,7 +133,7 @@ export default function ImageAnalysesPage() {
         setTimeout(() => setShowFavoriteToast(false), 2000)
       }
     } catch (error) {
-      console.error('Failed to add to favorites:', error)
+      console.error('Failed to update favorites:', error)
     }
   }
 

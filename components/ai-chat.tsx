@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Button, Heading, Label, Stack, Text, TextInput } from '@primer/react'
 import { ArrowRightIcon, XIcon, CommentIcon, ChevronLeftIcon, ChevronRightIcon, PlayIcon } from '@primer/octicons-react'
 import ReactMarkdown from 'react-markdown'
+import { apiFetch } from '@/lib/api'
 
 interface AIChatProps {
   onClose?: () => void
@@ -40,7 +41,7 @@ export function AIChat({ onClose, messages, setMessages, collapsed = false, onTo
     setLoading(true)
 
     try {
-      const response = await fetch('/api/chat', {
+      const response = await apiFetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: userMessage, generateAudio })

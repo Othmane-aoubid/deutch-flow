@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server'
+import { verifyFirebaseToken } from '@/lib/firebase-admin'
 
 export async function POST(request: Request) {
+  const user = await verifyFirebaseToken(request)
+  if (!user) return NextResponse.json({ error: 'Sign-in required.' }, { status: 401 })
+
   const baseUrl = process.env.NVIDIA_BASE_URL
   const apiKey = process.env.NVIDIA_API_KEY
   const fallbackApiKey = process.env.NVIDIA_API_KEY_FALLBACK

@@ -4,17 +4,26 @@ import { adminDb, firebaseAdminConfigured, verifyFirebaseToken } from '@/lib/fir
 export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params
-    
+
     if (!firebaseAdminConfigured || !adminDb) {
       return NextResponse.json({ error: 'Firebase Admin is not configured.' }, { status: 503 })
     }
-    
+
     const user = await verifyFirebaseToken(request)
     if (!user) {
       return NextResponse.json({ error: 'Sign-in required.' }, { status: 401 })
     }
 
-    await adminDb.collection('favorites').doc(id).delete()
+    const docRef = adminDb.collection('favorites').doc(id)
+    const doc = await docRef.get()
+    if (!doc.exists) {
+      return NextResponse.json({ error: 'Favorite not found.' }, { status: 404 })
+    }
+    if (doc.data()?.userId !== user.uid) {
+      return NextResponse.json({ error: 'Unauthorized.' }, { status: 403 })
+    }
+
+    await docRef.delete()
     return NextResponse.json({ success: true })
   } catch (error) {
     console.error('Error deleting favorite:', error)

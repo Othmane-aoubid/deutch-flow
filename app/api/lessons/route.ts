@@ -24,7 +24,10 @@ export async function POST(request: Request) {
     duration: typeof body.duration === 'string' ? body.duration : '00:00',
     score: typeof body.score === 'number' ? body.score : 0,
     images: Array.isArray(body.images) ? body.images.slice(0, 10) : [],
-    audio: typeof body.audio === 'string' ? body.audio.slice(0, 10000000) : null,
+    // New flow stores audio in Firebase Storage (see /api/lessons/audio); the legacy
+    // base64 `audio` field is kept only so older saved lessons still play back.
+    audioPath: typeof body.audioPath === 'string' && body.audioPath.startsWith(`lessons/${user.uid}/`) ? body.audioPath : null,
+    audio: typeof body.audio === 'string' ? body.audio.slice(0, 700000) : null,
     userId: user.uid,
     createdAt: new Date().toISOString(),
   }

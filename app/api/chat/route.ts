@@ -1,14 +1,16 @@
 import { NextResponse } from 'next/server'
+import { verifyFirebaseToken } from '@/lib/firebase-admin'
 
 export async function POST(request: Request) {
   try {
+    const user = await verifyFirebaseToken(request)
+    if (!user) return NextResponse.json({ error: 'Sign-in required.' }, { status: 401 })
+
     const { message, generateAudio } = await request.json()
     
     if (!message) {
       return NextResponse.json({ error: 'Message is required' }, { status: 400 })
     }
-
-    console.log('Chat request:', message, 'generateAudio:', generateAudio)
 
     let audioBase64: string | null = null
 
@@ -22,13 +24,9 @@ export async function POST(request: Request) {
         
         const prompt = `You are a German language tutor. Help the user with German learning. Provide translations, examples, grammar explanations, or vocabulary suggestions. Keep responses concise and helpful. User message: ${message}`
 
-        console.log('Sending to Gemini...')
         const result = await model.generateContent(prompt)
         const response = await result.response
-        const text = response.text()
-        
-        console.log('Gemini response:', text)
-        responseText = text
+        responseText = response.text()
       }
     } catch (geminiError) {
       console.error('Gemini API error, trying NVIDIA fallback:', geminiError)
@@ -59,7 +57,6 @@ export async function POST(request: Request) {
         if (upstream.ok) {
           const result = await upstream.json()
           const content = result.choices?.[0]?.message?.content
-          console.log('NVIDIA response:', content)
           responseText = content
         }
       } catch (nvidiaError) {
@@ -80,10 +77,10 @@ export async function POST(request: Request) {
         if (!baseUrl || !apiKey) {
           console.error('NVIDIA credentials not configured for audio generation')
         } else {
-          console.log('Attempting to generate audio with NVIDIA TTS')
           const ttsModel = process.env.NVIDIA_TTS_MODEL ?? 'canada/tts-1'
           
-          const ttsResponse = await fetch(`${baseUrl}/v1/audio/speech`, {
+          // NVIDIA_BASE_URL already ends in /v1 — appending another /v1 produced /v1/v1/... and 404s.
+          const ttsResponse = await fetch(`${baseUrl}/audio/speech`, {
             method: 'POST',
             headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -93,13 +90,10 @@ export async function POST(request: Request) {
             })
           })
           
-          console.log('TTS response status:', ttsResponse.status)
-          
           if (ttsResponse.ok) {
             const audioBuffer = await ttsResponse.arrayBuffer()
             const audioBase = Buffer.from(audioBuffer).toString('base64')
             audioBase64 = `data:audio/mp3;base64,${audioBase}`
-            console.log('Audio generated successfully, size:', audioBuffer.byteLength)
           } else {
             const errorText = await ttsResponse.text()
             console.error('TTS API error:', ttsResponse.status, errorText)
@@ -110,7 +104,6 @@ export async function POST(request: Request) {
       }
     }
 
-    console.log('Returning response with audio:', audioBase64 ? 'yes' : 'no')
     return NextResponse.json({ response: responseText, audio: audioBase64 })
   } catch (error) {
     console.error('Chat error:', error)

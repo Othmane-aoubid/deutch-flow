@@ -5,6 +5,7 @@ import { Button, Heading, Label, Stack, Text, FormControl, TextInput } from '@pr
 import { ArrowLeftIcon, CheckCircleIcon, XCircleIcon, PlayIcon, TrashIcon, SyncIcon, ArrowRightIcon, HeartIcon, HeartFillIcon } from '@primer/octicons-react'
 import { useRouter } from 'next/navigation'
 import { firebaseAuth } from '@/lib/firebase'
+import { apiFetch } from '@/lib/api'
 import { onAuthStateChanged } from 'firebase/auth'
 
 export default function VocabularyPage() {
@@ -38,11 +39,8 @@ export default function VocabularyPage() {
             return
           }
           
-          const token = await user.getIdToken()
-          const headers: Record<string, string> = { 'Authorization': `Bearer ${token}` }
-          
           // Load vocabulary
-          const response = await fetch('/api/vocabulary', { headers })
+          const response = await apiFetch('/api/vocabulary')
           
           if (!response.ok) {
             const text = await response.text()
@@ -60,7 +58,7 @@ export default function VocabularyPage() {
           }
           
           // Load favorites to check which items are favorited
-          const favResponse = await fetch('/api/favorites', { headers })
+          const favResponse = await apiFetch('/api/favorites')
           if (favResponse.ok) {
             const favData = await favResponse.json()
             if (favData.favorites) {
@@ -102,9 +100,7 @@ export default function VocabularyPage() {
         setLoading(false)
         return
       }
-      const token = await user.getIdToken()
-      const headers: Record<string, string> = { 'Authorization': `Bearer ${token}` }
-      const response = await fetch('/api/vocabulary', { headers })
+      const response = await apiFetch('/api/vocabulary')
       
       if (!response.ok) {
         const text = await response.text()
@@ -139,13 +135,9 @@ export default function VocabularyPage() {
   const markAsLearned = async (id: string, learned: boolean) => {
     try {
       if (!firebaseAuth) return
-      const user = firebaseAuth.currentUser
-      if (!user) return
-      const token = await user.getIdToken()
-      const headers: Record<string, string> = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }
-      await fetch(`/api/vocabulary/${id}`, {
+      await apiFetch(`/api/vocabulary/${id}`, {
         method: 'PATCH',
-        headers,
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ learned })
       })
       loadVocabulary()
@@ -157,11 +149,7 @@ export default function VocabularyPage() {
   const deleteVocabulary = async (id: string) => {
     try {
       if (!firebaseAuth) return
-      const user = firebaseAuth.currentUser
-      if (!user) return
-      const token = await user.getIdToken()
-      const headers: Record<string, string> = { 'Authorization': `Bearer ${token}` }
-      await fetch(`/api/vocabulary/${id}`, { method: 'DELETE', headers })
+      await apiFetch(`/api/vocabulary/${id}`, { method: 'DELETE' })
       loadVocabulary()
     } catch (error) {
       console.error('Failed to delete vocabulary:', error)
@@ -171,14 +159,23 @@ export default function VocabularyPage() {
   const addToFavorites = async (vocab: any) => {
     try {
       if (!firebaseAuth) return
-      const user = firebaseAuth.currentUser
-      if (!user) return
-      const token = await user.getIdToken()
-      const headers: Record<string, string> = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }
-      
-      const response = await fetch('/api/favorites', {
+      if (favoritedIds.has(vocab.german)) {
+        // Unfavorite: remove the existing favorite for this word.
+        const favResponse = await apiFetch('/api/favorites')
+        const favData = await favResponse.json()
+        const match = (favData.favorites ?? []).find((f: any) => f.type === 'vocabulary' && f.german === vocab.german)
+        if (match) await apiFetch(`/api/favorites/${match.id}`, { method: 'DELETE' })
+        setFavoritedIds(prev => {
+          const next = new Set(prev)
+          next.delete(vocab.german)
+          return next
+        })
+        return
+      }
+
+      const response = await apiFetch('/api/favorites', {
         method: 'POST',
-        headers,
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           type: 'vocabulary',
           german: vocab.german,
@@ -194,7 +191,7 @@ export default function VocabularyPage() {
         setTimeout(() => setShowFavoriteToast(false), 2000)
       }
     } catch (error) {
-      console.error('Failed to add to favorites:', error)
+      console.error('Failed to update favorites:', error)
     }
   }
 
@@ -425,7 +422,7 @@ export default function VocabularyPage() {
                         }
                         onClick={() => addToFavorites(vocab)}
                       >
-                        Favorite
+                        {favoritedIds.has(vocab.german) ? 'Unfavorite' : 'Favorite'}
                       </Button>
                       <Button 
                         variant={vocab.learned ? 'default' : 'primary'}
