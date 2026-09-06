@@ -11,6 +11,7 @@ import { AIChat } from '@/components/ai-chat'
 import { useRouter } from 'next/navigation'
 import { firebaseAuth } from '@/lib/firebase'
 import { onAuthStateChanged } from 'firebase/auth'
+import { transcribeInBrowser } from '@/lib/whisper'
 
 export default function Page() {
   return <AuthGate><PageContent /></AuthGate>
@@ -158,6 +159,59 @@ function formatDuration(seconds: number) {
   return `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`
 }
 
+/** Encode mono Float32 samples as a 16-bit PCM WAV file. */
+function encodeWav(samples: Float32Array, sampleRate: number): ArrayBuffer {
+  const buffer = new ArrayBuffer(44 + samples.length * 2)
+  const view = new DataView(buffer)
+  const writeStr = (offset: number, s: string) => {
+    for (let i = 0; i < s.length; i++) view.setUint8(offset + i, s.charCodeAt(i))
+  }
+  writeStr(0, 'RIFF')
+  view.setUint32(4, 36 + samples.length * 2, true)
+  writeStr(8, 'WAVE')
+  writeStr(12, 'fmt ')
+  view.setUint32(16, 16, true)
+  view.setUint16(20, 1, true)
+  view.setUint16(22, 1, true)
+  view.setUint32(24, sampleRate, true)
+  view.setUint32(28, sampleRate * 2, true)
+  view.setUint16(32, 2, true)
+  view.setUint16(34, 16, true)
+  writeStr(36, 'data')
+  view.setUint32(40, samples.length * 2, true)
+  let offset = 44
+  for (let i = 0; i < samples.length; i++, offset += 2) {
+    const s = Math.max(-1, Math.min(1, samples[i]))
+    view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7fff, true)
+  }
+  return buffer
+}
+
+/** Meter a live stream's RMS level for a short window (mic auto-probe). */
+async function meterStreamRms(stream: MediaStream, ms: number): Promise<number> {
+  const AudioCtx: typeof AudioContext = (window as any).AudioContext || (window as any).webkitAudioContext
+  const ctx = new AudioCtx()
+  try {
+    const src = ctx.createMediaStreamSource(stream)
+    const proc = ctx.createScriptProcessor(4096, 1, 1)
+    let sum = 0
+    let n = 0
+    proc.onaudioprocess = (e) => {
+      const d = e.inputBuffer.getChannelData(0)
+      for (let i = 0; i < d.length; i++) sum += d[i] * d[i]
+      n += d.length
+    }
+    src.connect(proc)
+    proc.connect(ctx.destination)
+    await new Promise((r) => setTimeout(r, ms))
+    proc.disconnect()
+    src.disconnect()
+    return n ? Math.sqrt(sum / n) : 0
+  } finally {
+    void ctx.close()
+  }
+}
+
 function TeacherMode({ recording, setRecording, lessonTitle, setLessonTitle, status, setStatus, onBack }: { recording: boolean; setRecording: (value: boolean) => void; lessonTitle: string; setLessonTitle: (value: string) => void; status: string; setStatus: (value: string) => void; onBack: () => void }) {
   const [transcript, setTranscript] = useState('')
   const [analysis, setAnalysis] = useState<any>(null)
@@ -165,12 +219,150 @@ function TeacherMode({ recording, setRecording, lessonTitle, setLessonTitle, sta
   const [audioChunks, setAudioChunks] = useState<Blob[]>([])
   const [level, setLevel] = useState('A2')
   const [recordingSeconds, setRecordingSeconds] = useState(0)
+  const [liveCaption, setLiveCaption] = useState('')
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const startedAtRef = useRef<number>(0)
+  const recognitionRef = useRef<any>(null)
+  const browserTranscriptRef = useRef('')
+  // Microphone selection: 'auto' probes every device briefly at record start
+  // and picks the one with real signal; a specific deviceId pins the choice.
+  const [mics, setMics] = useState<MediaDeviceInfo[]>([])
+  const [micId, setMicId] = useState(() => {
+    // Remembered choice from a previous session (default: auto).
+    if (typeof window === 'undefined') return 'auto'
+    try { return window.localStorage.getItem('df:micId') || 'auto' } catch { return 'auto' }
+  })
+  const [inputLevel, setInputLevel] = useState(0) // 0..1 live mic level for the meter
+  // undefined = not probed yet · null = probed, nothing beat default · string = chosen device
+  const autoMicRef = useRef<string | null | undefined>(undefined)
+
+  const refreshMics = async () => {
+    try {
+      const devs = await navigator.mediaDevices.enumerateDevices()
+      setMics(devs.filter((d) => d.kind === 'audioinput'))
+    } catch {}
+  }
+
+  useEffect(() => {
+    let cancelled = false
+    // Labels are only visible after mic permission; open the default mic
+    // briefly once so the dropdown can show real device names.
+    ;(async () => {
+      try {
+        const s = await navigator.mediaDevices.getUserMedia({ audio: true })
+        s.getTracks().forEach((t) => t.stop())
+        if (!cancelled) await refreshMics()
+      } catch {}
+    })()
+    const onChange = () => {
+      autoMicRef.current = undefined // devices changed → re-probe next record
+      refreshMics()
+    }
+    navigator.mediaDevices?.addEventListener?.('devicechange', onChange)
+    return () => {
+      cancelled = true
+      navigator.mediaDevices?.removeEventListener?.('devicechange', onChange)
+    }
+  }, [])
+
+  // Persist the mic choice across reloads.
+  useEffect(() => {
+    try {
+      if (micId === 'auto') window.localStorage.removeItem('df:micId')
+      else window.localStorage.setItem('df:micId', micId)
+    } catch {}
+  }, [micId])
+
+  // Probe every real input device (~0.5 s each) and return the id with the
+  // strongest RMS — or null when nothing beats the OS default.
+  const probeBestMic = async (): Promise<string | null> => {
+    const devs = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === 'audioinput')
+    // 'default'/'communications' are aliases — probing the real devices covers them.
+    const candidates = devs.filter((d) => d.deviceId && d.deviceId !== 'default' && d.deviceId !== 'communications')
+    let best: { id: string; rms: number } | null = null
+    for (const dev of candidates) {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: { deviceId: { exact: dev.deviceId }, echoCancellation: false, noiseSuppression: false, autoGainControl: false },
+        })
+        const rms = await meterStreamRms(stream, 500)
+        stream.getTracks().forEach((t) => t.stop())
+        if (!best || rms > best.rms) best = { id: dev.deviceId, rms }
+      } catch {}
+    }
+    // Floor: below this the "winner" is itself silent — prefer default anyway.
+    // (0.0005 sits above digital-silence/idle noise but far below real speech;
+    // observed idle mics read ~0.0003, the working array ~0.003 when quiet.)
+    return best && best.rms > 0.0005 ? best.id : null
+  }
+  // Live transcription: the mic is tapped at 16 kHz, cut into ~3 s chunks and
+  // sent to the server Whisper WHILE recording, so text appears on the spot.
+  const pendingLiveRef = useRef<Float32Array[]>([]) // samples not yet dispatched
+  const liveTextRef = useRef('')                    // finalized live transcript
+  const liveQueueRef = useRef<Promise<void>>(Promise.resolve()) // serialize jobs
+  const audioCtxRef = useRef<AudioContext | null>(null)
+  const processorRef = useRef<ScriptProcessorNode | null>(null)
+  const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null)
+
+  const flushLiveChunk = (force = false) => {
+    const rate = audioCtxRef.current?.sampleRate ?? 16000
+    const buffered = pendingLiveRef.current.reduce((n, a) => n + a.length, 0)
+    if (!force && buffered < rate * 3) return
+    if (buffered < rate * 0.6) return // too short to be worth a round-trip
+    const merged = new Float32Array(buffered)
+    let offset = 0
+    for (const part of pendingLiveRef.current) {
+      merged.set(part, offset)
+      offset += part.length
+    }
+    pendingLiveRef.current = []
+    const wav = encodeWav(merged, rate)
+    // Serialize jobs so chunks are appended in chronological order.
+    liveQueueRef.current = liveQueueRef.current.then(async () => {
+      try {
+        const form = new FormData()
+        form.append('audio', new Blob([wav], { type: 'audio/wav' }), 'chunk.wav')
+        const res = await apiFetch('/api/asr', { method: 'POST', body: form })
+        if (!res.ok) return
+        const data = await res.json().catch(() => ({}))
+        const text = (Array.isArray(data.segments) ? data.segments : []).map((s: any) => s.text).join(' ').trim()
+        if (!text) return
+        liveTextRef.current = liveTextRef.current ? `${liveTextRef.current} ${text}` : text
+        setTranscript(liveTextRef.current)
+      } catch {
+        // A dropped chunk must not kill the live stream; the stop-time path recovers.
+      }
+    })
+  }
 
   const startRecording = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      // Mic selection: a pinned device wins; 'auto' probes all devices once
+      // per session (cached) and falls back to the OS default on silence.
+      let constraints: MediaTrackConstraints = { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
+      if (micId !== 'auto') {
+        try {
+          // Verify the remembered device still exists (else getUserMedia fails).
+          const test = await navigator.mediaDevices.getUserMedia({ audio: { ...constraints, deviceId: { exact: micId } } })
+          test.getTracks().forEach((t) => t.stop())
+          constraints = { ...constraints, deviceId: { exact: micId } }
+        } catch {
+          // Remembered device is gone (unplugged) — fall back gracefully.
+          setMicId('auto')
+          autoMicRef.current = undefined
+        }
+      }
+      if (micId === 'auto' || autoMicRef.current) {
+        setStatus('Checking microphones…')
+        if (autoMicRef.current === undefined) autoMicRef.current = await probeBestMic()
+        if (autoMicRef.current) {
+          constraints = { ...constraints, deviceId: { exact: autoMicRef.current } }
+          const label = mics.find((m) => m.deviceId === autoMicRef.current)?.label
+          if (label) setStatus(`Using ${label}`)
+        }
+      }
+      // Raw mic audio: browser processing filters can mangle word onsets for Whisper.
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: constraints })
       const recorder = new MediaRecorder(stream)
       const chunks: Blob[] = []
 
@@ -180,19 +372,43 @@ function TeacherMode({ recording, setRecording, lessonTitle, setLessonTitle, sta
         const audioBlob = new Blob(chunks, { type: 'audio/webm' })
         const duration = formatDuration(Math.max(1, Math.round((Date.now() - startedAtRef.current) / 1000)))
 
-        setStatus('Processing audio...')
-        const formData = new FormData()
-        formData.append('audio', audioBlob)
+        // Tear down the live tap, flush any remaining samples, and let the
+        // last in-flight chunk job finish before continuing.
+        try { processorRef.current?.disconnect(); sourceRef.current?.disconnect(); await audioCtxRef.current?.close() } catch {}
+        processorRef.current = null; sourceRef.current = null; audioCtxRef.current = null
+        setInputLevel(0)
+        flushLiveChunk(true)
+        await liveQueueRef.current.catch(() => {})
+
+        // Full chain, in order: live server chunks → Web Speech finals
+        // captured while recording → full-file server pass → in-browser Whisper.
+        let fullTranscript = liveTextRef.current || browserTranscriptRef.current
+        if (!fullTranscript) {
+          setStatus('Transcribing...')
+          const formData = new FormData()
+          formData.append('audio', audioBlob)
+          try {
+            const asrResponse = await apiFetch('/api/asr', { method: 'POST', body: formData })
+            const asrResult = await asrResponse.json().catch(() => ({}))
+            const serverTranscript = asrResponse.ok && Array.isArray(asrResult.segments)
+              ? asrResult.segments.map((s: any) => s.text).join(' ')
+              : ''
+            if (serverTranscript) fullTranscript = serverTranscript
+          } catch {}
+        }
+        if (!fullTranscript) {
+          const whisper = await transcribeInBrowser(audioBlob, (message) => setStatus(message))
+          if (whisper?.text) fullTranscript = whisper.text
+        }
+        if (!fullTranscript) {
+          setStatus('No speech detected in the recording')
+          stream.getTracks().forEach(track => track.stop())
+          return
+        }
+        setTranscript(fullTranscript)
+        setStatus('Analyzing transcript...')
 
         try {
-          const asrResponse = await apiFetch('/api/asr', { method: 'POST', body: formData })
-          const asrResult = await asrResponse.json()
-
-          if (asrResult.segments && asrResult.segments.length > 0) {
-            const fullTranscript = asrResult.segments.map((s: any) => s.text).join(' ')
-            setTranscript(fullTranscript)
-            setStatus('Analyzing transcript...')
-
             const analyzeResponse = await apiFetch('/api/analyze', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -237,9 +453,6 @@ function TeacherMode({ recording, setRecording, lessonTitle, setLessonTitle, sta
             } else {
               setStatus('Lesson saved')
             }
-          } else {
-            setStatus('No speech detected in the recording')
-          }
         } catch (error) {
           setStatus('Processing failed')
         }
@@ -251,11 +464,78 @@ function TeacherMode({ recording, setRecording, lessonTitle, setLessonTitle, sta
       setMediaRecorder(recorder)
       setRecording(true)
       setRecordingSeconds(0)
+      setTranscript('')
+      setLiveCaption('')
+      liveTextRef.current = ''
+      browserTranscriptRef.current = ''
+      pendingLiveRef.current = []
+      liveQueueRef.current = Promise.resolve()
+      setAnalysis(null)
       startedAtRef.current = Date.now()
       timerRef.current = setInterval(() => {
         setRecordingSeconds(Math.floor((Date.now() - startedAtRef.current) / 1000))
       }, 1000)
-      setStatus('Recording started')
+      // Live transcription tap: pull raw PCM from the mic, accumulate ~3 s
+      // chunks, and send each to the server Whisper while recording continues.
+      try {
+        const AudioCtx: typeof AudioContext = (window as any).AudioContext || (window as any).webkitAudioContext
+        const ctx = new AudioCtx()
+        const source = ctx.createMediaStreamSource(stream)
+        const processor = ctx.createScriptProcessor(4096, 1, 1)
+        processor.onaudioprocess = (e) => {
+          const data = new Float32Array(e.inputBuffer.getChannelData(0))
+          pendingLiveRef.current.push(data)
+          // Live input meter: RMS scaled so normal speech sits mid-bar.
+          let sum = 0
+          for (let i = 0; i < data.length; i++) sum += data[i] * data[i]
+          const rms = Math.sqrt(sum / data.length)
+          setInputLevel(Math.min(1, rms * 4))
+          flushLiveChunk()
+        }
+        source.connect(processor)
+        processor.connect(ctx.destination)
+        audioCtxRef.current = ctx
+        sourceRef.current = source
+        processorRef.current = processor
+      } catch {
+        // Tap unavailable — stop-time full-file transcription still covers it.
+      }
+      // Live captions while recording (Web Speech API — Chrome/Edge). Gives
+      // instant word-by-word text when the browser supports it; the server
+      // chunk stream above is the provider-independent live layer.
+      const SRClass = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+      if (SRClass) {
+        try {
+          const recognition = new SRClass()
+          recognition.lang = 'de-DE'
+          recognition.continuous = true
+          recognition.interimResults = true
+          recognition.onresult = (event: any) => {
+            let interim = ''
+            for (let i = event.resultIndex; i < event.results.length; i++) {
+              if (event.results[i].isFinal) {
+                const final = event.results[i][0].transcript.trim()
+                // Server chunks own the transcript once they arrive; until
+                // then Web Speech finals provide the instant live view.
+                if (!liveTextRef.current) {
+                  browserTranscriptRef.current = browserTranscriptRef.current ? `${browserTranscriptRef.current} ${final}` : final
+                  setTranscript(browserTranscriptRef.current)
+                }
+              } else {
+                interim += event.results[i][0].transcript
+              }
+            }
+            setLiveCaption(interim)
+          }
+          recognition.onerror = () => setLiveCaption('')
+          recognition.onend = () => setLiveCaption('')
+          recognition.start()
+          recognitionRef.current = recognition
+        } catch {
+          recognitionRef.current = null
+        }
+      }
+      setStatus('Recording started — transcript appears live')
     } catch (error) {
       setStatus('Microphone access denied')
       console.error(error)
@@ -267,7 +547,9 @@ function TeacherMode({ recording, setRecording, lessonTitle, setLessonTitle, sta
       mediaRecorder.stop()
       setRecording(false)
       if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null }
-      setStatus('Recording stopped')
+      recognitionRef.current?.stop?.()
+      recognitionRef.current = null
+      setStatus('Finishing transcription…')
     }
   }
 
@@ -284,7 +566,12 @@ function TeacherMode({ recording, setRecording, lessonTitle, setLessonTitle, sta
             </Stack>
             <Button onClick={onBack}>Change mode</Button>
           </Stack>
-          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.1fr) minmax(300px, .9fr)', gap: 24 }}>
+          {/* Responsive: collapse to one column on narrow screens — otherwise the
+              right column overlaps and swallows clicks on the Stop button. */}
+          <style>{`@media (max-width: 900px) { .df-teacher-grid { grid-template-columns: 1fr !important; } }
+  .df-teacher-grid > * { min-width: 0; }
+  .df-teacher-grid select { min-width: 0; max-width: 100%; }`}</style>
+          <div className="df-teacher-grid" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.1fr) minmax(300px, .9fr)', gap: 24 }}>
             <section style={{ border: 'var(--borderWidth-thin) solid var(--borderColor-default)', borderRadius: 12, padding: 28, background: 'var(--bgColor-muted)' }}>
               <Stack direction="vertical" gap="normal">
                 <Stack direction="horizontal" gap="condensed">
@@ -293,14 +580,42 @@ function TeacherMode({ recording, setRecording, lessonTitle, setLessonTitle, sta
                     {['A1', 'A2', 'B1', 'B2', 'C1', 'C2'].map((l) => <option key={l} value={l}>{l}</option>)}
                   </select>
                 </Stack>
+                <Stack direction="horizontal" gap="condensed" align="center">
+                  <Text size="small" style={{ color: 'var(--fgColor-muted)' }}>Microphone</Text>
+                  <select
+                    aria-label="Microphone"
+                    value={micId}
+                    onChange={(e) => {
+                      setMicId(e.target.value)
+                      if (e.target.value !== 'auto') autoMicRef.current = null // explicit choice beats auto
+                      else autoMicRef.current = undefined // re-arm auto probing
+                    }}
+                    style={{ flex: 1, minWidth: 0, width: '100%', padding: '6px 10px', borderRadius: 6, border: 'var(--borderWidth-thin) solid var(--borderColor-default)', background: 'var(--bgColor-default)', color: 'var(--fgColor-default)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                  >
+                    <option value="auto">Auto — best signal</option>
+                    {mics.map((m) => <option key={m.deviceId} value={m.deviceId}>{m.label || `Microphone ${m.deviceId.slice(0, 8)}`}</option>)}
+                  </select>
+                </Stack>
                 <div style={{ minHeight: 260, border: 'var(--borderWidth-thin) solid var(--borderColor-muted)', borderRadius: 8, padding: 20, background: 'var(--bgColor-default)' }}>
                   <Stack direction="vertical" gap="normal">
                     <Stack direction="horizontal" gap="condensed" align="center">
                       <span style={{ color: recording ? 'var(--fgColor-open)' : 'var(--fgColor-muted)' }}><UnmuteIcon /></span>
                       <Text weight="semibold">Live transcript</Text>
                       <Label variant={recording ? 'attention' : 'secondary'}>{recording ? 'Listening' : 'Waiting'}</Label>
+                      <Stack direction="horizontal" gap="condensed" align="center" style={{ marginLeft: 'auto' }}>
+                        <Text size="small" style={{ color: 'var(--fgColor-muted)' }}>Mic</Text>
+                        <div aria-label="Input level" style={{ width: 120, height: 8, borderRadius: 4, background: 'var(--borderColor-muted)', overflow: 'hidden' }}>
+                          <div style={{ width: `${Math.round(inputLevel * 100)}%`, height: '100%', transition: 'width 90ms linear', background: inputLevel > 0.75 ? 'var(--fgColor-attention)' : 'var(--fgColor-success)' }} />
+                        </div>
+                      </Stack>
                     </Stack>
-                    <Text style={{ color: 'var(--fgColor-muted)', lineHeight: 1.7 }}>{transcript || (recording ? 'Listening...' : 'Your transcript will appear here as the conversation unfolds.')}</Text>
+                    <Text style={{ color: 'var(--fgColor-muted)', lineHeight: 1.7 }}>
+                      {transcript || liveCaption
+                        ? `${transcript}${transcript && liveCaption ? ' ' : ''}${liveCaption}`
+                        : recording
+                          ? 'Listening — text appears here live as you speak…'
+                          : 'Your transcript will appear here as the conversation unfolds.'}
+                    </Text>
                   </Stack>
                 </div>
                 <Stack direction="horizontal" justify="space-between" align="center">

@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server'
 import { verifyFirebaseToken } from '@/lib/firebase-admin'
+import { nvidiaChatCompletion, type NvidiaAttempt } from '@/lib/nvidia'
+import { geminiGenerate } from '@/lib/gemini'
 
 type ChatMessage = { role: 'system' | 'user'; content: string }
 
@@ -30,62 +32,48 @@ function extractAnalysis(text: string): Record<string, unknown> | null {
   return null
 }
 
-async function requestChat(
-  baseUrl: string,
-  apiKey: string,
-  model: string,
-  transcript: string,
-  level: string,
-  extraBody?: Record<string, unknown>,
-): Promise<string | null> {
-  const messages: ChatMessage[] = [
-    { role: 'system', content: `${SYSTEM_PROMPT} Target CEFR level: ${level}.` },
-    { role: 'user', content: transcript },
-  ]
-  const upstream = await fetch(`${baseUrl}/chat/completions`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ model, messages, temperature: 0.2, ...extraBody }),
-  })
-  if (!upstream.ok) return null
-  const result = await upstream.json()
-  return result.choices?.[0]?.message?.content ?? null
-}
-
 export async function POST(request: Request) {
   const user = await verifyFirebaseToken(request)
   if (!user) return NextResponse.json({ error: 'Sign-in required.' }, { status: 401 })
 
   const baseUrl = process.env.NVIDIA_BASE_URL
-  const apiKey = process.env.NVIDIA_API_KEY
-  const fallbackApiKey = process.env.NVIDIA_API_KEY_FALLBACK
-  if (!baseUrl || !apiKey) return NextResponse.json({ error: 'NVIDIA LLM is not configured. Add NVIDIA_BASE_URL and NVIDIA_API_KEY.' }, { status: 503 })
+  if (!baseUrl) return NextResponse.json({ error: 'NVIDIA LLM is not configured. Add NVIDIA_BASE_URL and NVIDIA_API_KEY.' }, { status: 503 })
 
   const { transcript, level = 'A2' } = await request.json()
   if (!transcript || typeof transcript !== 'string') return NextResponse.json({ error: 'Transcript is required.' }, { status: 400 })
 
-  const model = process.env.NVIDIA_LLM_MODEL ?? 'meta/muse-glimmer-30b'
-  const fallbackModel = process.env.NVIDIA_LLM_MODEL_FALLBACK ?? 'nvidia/nemotron-3-ultra-550b-a55b'
+  const messages: ChatMessage[] = [
+    { role: 'system', content: `${SYSTEM_PROMPT} Target CEFR level: ${level}.` },
+    { role: 'user', content: transcript },
+  ]
 
-  try {
-    let content = await requestChat(baseUrl, apiKey, model, transcript, level)
-    if (!content && fallbackApiKey) {
-      content = await requestChat(baseUrl, fallbackApiKey, fallbackModel, transcript, level, {
-        chat_template_kwargs: { enable_thinking: true },
-        reasoning_budget: 16384,
-      })
+  // Chain: NVIDIA (multi-key, primary + fallback models + kimi-k3) -> Gemini.
+  const nvidia = await nvidiaChatCompletion({ messages, temperature: 0.2, maxTokens: 4000 })
+
+  let content = nvidia.content
+  let attempts: Array<NvidiaAttempt | { provider: string; ok: boolean; detail?: string }> = nvidia.attempts
+
+  if (!content) {
+    const geminiText = await geminiGenerate(
+      `Analyze this German conversation transcript for a ${level} level learner. Return ONLY valid JSON with fields: corrections (original/corrected/explanation), vocabulary (word/translation/level), grammarPatterns (pattern/explanation), nextSteps (array of strings).\n\nTranscript:\n${transcript}`,
+      SYSTEM_PROMPT
+    )
+    if (geminiText) {
+      content = geminiText
+      attempts = [...attempts, { provider: 'gemini', ok: true }]
+    } else {
+      attempts = [...attempts, { provider: 'gemini', ok: false, detail: 'failed or not configured' }]
     }
-
-    if (!content) return NextResponse.json({ error: 'NVIDIA analysis request failed.' }, { status: 502 })
-
-    const analysis = extractAnalysis(content)
-    if (!analysis) {
-      // LLM did not produce parseable JSON — surface the raw text so nothing is lost.
-      return NextResponse.json({ analysis: { rawResponse: content }, raw: content })
-    }
-    return NextResponse.json({ analysis, raw: content })
-  } catch (error) {
-    console.error('Analysis request failed:', error)
-    return NextResponse.json({ error: 'NVIDIA analysis request failed.' }, { status: 502 })
   }
+
+  if (!content) {
+    return NextResponse.json({ error: 'All analysis providers failed.', attempts }, { status: 502 })
+  }
+
+  const analysis = extractAnalysis(content)
+  if (!analysis) {
+    // LLM did not produce parseable JSON — surface the raw text so nothing is lost.
+    return NextResponse.json({ analysis: { rawResponse: content }, raw: content, attempts })
+  }
+  return NextResponse.json({ analysis, raw: content, attempts })
 }

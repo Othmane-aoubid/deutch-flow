@@ -6,8 +6,13 @@ export async function GET(request: Request) {
   if (!firebaseAdminConfigured || !adminDb) return NextResponse.json({ error: 'Firebase Admin is not configured.' }, { status: 503 })
   if (!user) return NextResponse.json({ error: 'Sign-in required.' }, { status: 401 })
 
-  const snapshot = await adminDb.collection('lessons').where('userId', '==', user.uid).orderBy('createdAt', 'desc').limit(50).get()
-  return NextResponse.json({ lessons: snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })), configured: true })
+  // Sort in code rather than orderBy('createdAt') — that combination requires a
+  // composite index that doesn't exist yet (it 500s without it). Same pattern as
+  // the vocabulary/favorites routes.
+  const snapshot = await adminDb.collection('lessons').where('userId', '==', user.uid).limit(50).get()
+  const lessons = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })) as any[]
+  lessons.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+  return NextResponse.json({ lessons, configured: true })
 }
 
 export async function POST(request: Request) {

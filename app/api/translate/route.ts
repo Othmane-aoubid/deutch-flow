@@ -1,77 +1,45 @@
 import { NextResponse } from 'next/server'
 import { verifyFirebaseToken } from '@/lib/firebase-admin'
+import { nvidiaChatCompletion, type NvidiaAttempt } from '@/lib/nvidia'
+import { geminiGenerate } from '@/lib/gemini'
 
 export async function POST(request: Request) {
   const user = await verifyFirebaseToken(request)
   if (!user) return NextResponse.json({ error: 'Sign-in required.' }, { status: 401 })
 
-  const baseUrl = process.env.NVIDIA_BASE_URL
-  const apiKey = process.env.NVIDIA_API_KEY
-  const fallbackApiKey = process.env.NVIDIA_API_KEY_FALLBACK
-  
-  if (!baseUrl || !apiKey) {
-    return NextResponse.json({ error: 'NVIDIA LLM is not configured. Add NVIDIA_BASE_URL and NVIDIA_API_KEY.' }, { status: 503 })
+  if (!process.env.NVIDIA_API_KEY && !process.env.NVIDIA_API_KEY_FALLBACK && !process.env.NVIDIA_API_KEY_2 && !process.env.GEMINI_API_KEY) {
+    return NextResponse.json({ error: 'No translation provider configured.' }, { status: 503 })
   }
 
   const { text, targetLanguage = 'English' } = await request.json()
-  
   if (!text || typeof text !== 'string') {
     return NextResponse.json({ error: 'Text is required.' }, { status: 400 })
   }
-  
-  const model = process.env.NVIDIA_LLM_MODEL ?? 'meta/muse-glimmer-30b'
-  const fallbackModel = process.env.NVIDIA_LLM_MODEL_FALLBACK ?? 'nvidia/nemotron-3-ultra-550b-a55b'
-  
-  const systemPrompt = targetLanguage === 'Arabic' 
-    ? 'You are a professional translator. Translate the German text to Arabic. Return only the translation, no explanations.'
-    : 'You are a professional translator. Translate the German text to English. Return only the translation, no explanations.'
-  
-  try {
-    const upstream = await fetch(`${baseUrl}/chat/completions`, { 
-      method: 'POST', 
-      headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' }, 
-      body: JSON.stringify({ 
-        model: model, 
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: text }
-        ], 
-        temperature: 0.3,
-        max_tokens: 500
-      }) 
-    })
-    
-    if (upstream.ok) {
-      const result = await upstream.json()
-      const translation = result.choices?.[0]?.message?.content || text
-      return NextResponse.json({ translation, targetLanguage })
-    }
-    
-    // Try fallback API
-    if (fallbackApiKey) {
-      const fallbackUpstream = await fetch(`${baseUrl}/chat/completions`, { 
-        method: 'POST', 
-        headers: { Authorization: `Bearer ${fallbackApiKey}`, 'Content-Type': 'application/json' }, 
-        body: JSON.stringify({ 
-          model: fallbackModel, 
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: text }
-          ], 
-          temperature: 0.3,
-          max_tokens: 500
-        }) 
-      })
-      
-      if (fallbackUpstream.ok) {
-        const result = await fallbackUpstream.json()
-        const translation = result.choices?.[0]?.message?.content || text
-        return NextResponse.json({ translation, targetLanguage })
-      }
-    }
-    
-    return NextResponse.json({ error: 'Translation request failed.' }, { status: 502 })
-  } catch (error) {
-    return NextResponse.json({ error: 'Translation request failed.' }, { status: 502 })
+
+  const systemPrompt =
+    'You are a professional translator. Translate the German text to ' + targetLanguage + '. Return only the translation, no explanations.'
+
+  // Chain: NVIDIA (multi-key) -> Gemini.
+  const nvidia = await nvidiaChatCompletion({
+    messages: [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: text },
+    ],
+    temperature: 0.3,
+    maxTokens: 2000,
+  })
+
+  if (nvidia.content) {
+    return NextResponse.json({ translation: nvidia.content, targetLanguage, provider: 'nvidia', attempts: nvidia.attempts })
   }
+
+  const geminiText = await geminiGenerate(
+    `Translate the following German text to ${targetLanguage}. Return only the translation, no explanations.\n\n${text}`,
+    'You are a professional translator.'
+  )
+  if (geminiText) {
+    return NextResponse.json({ translation: geminiText, targetLanguage, provider: 'gemini', attempts: nvidia.attempts as NvidiaAttempt[] })
+  }
+
+  return NextResponse.json({ error: 'All translation providers failed.', attempts: nvidia.attempts }, { status: 502 })
 }

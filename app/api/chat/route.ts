@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server'
 import { verifyFirebaseToken } from '@/lib/firebase-admin'
+import { nvidiaChatCompletion, type NvidiaAttempt } from '@/lib/nvidia'
+import { geminiGenerate } from '@/lib/gemini'
 
 export async function POST(request: Request) {
   try {
@@ -7,65 +9,34 @@ export async function POST(request: Request) {
     if (!user) return NextResponse.json({ error: 'Sign-in required.' }, { status: 401 })
 
     const { message, generateAudio } = await request.json()
-    
     if (!message) {
       return NextResponse.json({ error: 'Message is required' }, { status: 400 })
     }
 
     let audioBase64: string | null = null
 
-    // Try Gemini first
-    let responseText: string | null = null
-    try {
-      const genAI = require('@google/generative-ai')
-      const apiKey = process.env.GEMINI_API_KEY
-      if (apiKey) {
-        const model = new genAI.GoogleGenerativeAI(apiKey).getGenerativeModel({ model: 'gemini-1.5-pro' })
-        
-        const prompt = `You are a German language tutor. Help the user with German learning. Provide translations, examples, grammar explanations, or vocabulary suggestions. Keep responses concise and helpful. User message: ${message}`
+    // Chain: NVIDIA (multi-key) -> Gemini.
+    const nvidia = await nvidiaChatCompletion({
+      messages: [
+        { role: 'system', content: 'You are a German language tutor. Provide German vocabulary and learning suggestions. Keep responses concise and helpful.' },
+        { role: 'user', content: message },
+      ],
+      temperature: 0.2,
+      maxTokens: 2000,
+    })
+    let responseText: string | null = nvidia.content
+    const attempts: Array<NvidiaAttempt | { provider: string; ok: boolean; detail?: string }> = nvidia.attempts
 
-        const result = await model.generateContent(prompt)
-        const response = await result.response
-        responseText = response.text()
-      }
-    } catch (geminiError) {
-      console.error('Gemini API error, trying NVIDIA fallback:', geminiError)
-    }
-
-    // Fallback to NVIDIA if Gemini failed
     if (!responseText) {
-      const baseUrl = process.env.NVIDIA_BASE_URL
-      const apiKey = process.env.NVIDIA_API_KEY
-      
-      if (!baseUrl || !apiKey) {
-        return NextResponse.json({ error: 'Both Gemini and NVIDIA APIs are not configured' }, { status: 503 })
-      }
-
-      const model = process.env.NVIDIA_LLM_MODEL ?? 'meta/muse-glimmer-30b'
-      
-      try {
-        const upstream = await fetch(`${baseUrl}/chat/completions`, { 
-          method: 'POST', 
-          headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' }, 
-          body: JSON.stringify({ 
-            model: model, 
-            messages: [{ role: 'system', content: 'You are a German language tutor. Provide German vocabulary and learning suggestions. Keep responses concise and helpful.' }, { role: 'user', content: message }], 
-            temperature: 0.2 
-          }) 
-        })
-        
-        if (upstream.ok) {
-          const result = await upstream.json()
-          const content = result.choices?.[0]?.message?.content
-          responseText = content
-        }
-      } catch (nvidiaError) {
-        console.error('NVIDIA API error:', nvidiaError)
-      }
+      responseText = await geminiGenerate(
+        message,
+        'You are a German language tutor. Provide German vocabulary and learning suggestions. Keep responses concise and helpful.'
+      )
+      attempts.push({ provider: 'gemini', ok: Boolean(responseText), detail: responseText ? undefined : 'failed or not configured' })
     }
 
     if (!responseText) {
-      return NextResponse.json({ error: 'All AI services unavailable' }, { status: 503 })
+      return NextResponse.json({ error: 'All AI services unavailable', attempts }, { status: 503 })
     }
 
     // Generate audio if requested
@@ -73,12 +44,12 @@ export async function POST(request: Request) {
       try {
         const baseUrl = process.env.NVIDIA_BASE_URL
         const apiKey = process.env.NVIDIA_API_KEY
-        
+
         if (!baseUrl || !apiKey) {
           console.error('NVIDIA credentials not configured for audio generation')
         } else {
           const ttsModel = process.env.NVIDIA_TTS_MODEL ?? 'canada/tts-1'
-          
+
           // NVIDIA_BASE_URL already ends in /v1 — appending another /v1 produced /v1/v1/... and 404s.
           const ttsResponse = await fetch(`${baseUrl}/audio/speech`, {
             method: 'POST',
@@ -89,14 +60,14 @@ export async function POST(request: Request) {
               voice: 'alloy'
             })
           })
-          
+
           if (ttsResponse.ok) {
             const audioBuffer = await ttsResponse.arrayBuffer()
             const audioBase = Buffer.from(audioBuffer).toString('base64')
             audioBase64 = `data:audio/mp3;base64,${audioBase}`
           } else {
             const errorText = await ttsResponse.text()
-            console.error('TTS API error:', ttsResponse.status, errorText)
+            console.error('TTS API error:', ttsResponse.status, errorText.slice(0, 200))
           }
         }
       } catch (audioError) {
@@ -104,7 +75,7 @@ export async function POST(request: Request) {
       }
     }
 
-    return NextResponse.json({ response: responseText, audio: audioBase64 })
+    return NextResponse.json({ response: responseText, audio: audioBase64, attempts })
   } catch (error) {
     console.error('Chat error:', error)
     return NextResponse.json({ error: 'Failed to process chat message', details: error instanceof Error ? error.message : 'Unknown error' }, { status: 500 })

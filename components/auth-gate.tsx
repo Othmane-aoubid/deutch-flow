@@ -114,7 +114,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
           <Button variant="default" onClick={signInWithGoogle} style={{ width: '100%' }}>Sign in with Google</Button>
           {googleHint && (
             <Text size="small" style={{ color: 'var(--fgColor-attention)' }}>
-              Google sign-in couldn't open a popup here.{' '}
+              Google sign-in couldn&apos;t open a popup here.{' '}
               <Link href={googleHint} target="_blank" rel="noreferrer">Open DeutschFlow in a browser tab</Link> and sign in there.
             </Text>
           )}

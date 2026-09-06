@@ -16,4 +16,8 @@ __v0_jsx-dev-runtime.ts
 # Common ignores
 node_modules
 .next/
-.DS_Store*.tsbuildinfo
+.DS_Store
+*.tsbuildinfo
+
+# Freebuff session artifacts (run docs, preview logs, temp tokens)
+.freebuff/

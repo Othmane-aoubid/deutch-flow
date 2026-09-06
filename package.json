@@ -14,7 +14,9 @@
     "@primer/octicons-react": "^19.16.0",
     "@primer/primitives": "^11.0.0",
     "@primer/react": "^38.35.1",
+    "@xenova/transformers": "^2.17.2",
     "dotenv": "^17.4.2",
+    "ffmpeg-static": "^5.3.0",
     "firebase": "^12.17.1",
     "firebase-admin": "^14.2.0",
     "next": "^16.0.0",
@@ -31,7 +33,14 @@
     "@types/react-dom": "^19.0.0",
     "eslint": "^9.39.5",
     "eslint-config-next": "^16.3.4",
+    "google-auth-library": "^11.0.2",
     "ts-node": "^10.9.2",
     "typescript": "^5.7.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "sharp",
+      "ffmpeg-static"
+    ]
   }
 }
