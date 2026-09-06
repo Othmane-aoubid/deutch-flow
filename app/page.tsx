@@ -92,6 +92,8 @@ function ModeCard({ icon, label, title, description, action, onClick }: { icon: 
 }
 
 function LessonAnalysis({ analysis }: { analysis: any }) {
+  const translations = Array.isArray(analysis?.translations) ? analysis.translations.filter((t: unknown) => typeof t === 'string' && t.trim()) : []
+  const translation = typeof analysis?.translation === 'string' && analysis.translation.trim() ? analysis.translation.trim() : translations.join(' ')
   const speakText = (text: string) => {
     if (!window.speechSynthesis) return
     const utterance = new SpeechSynthesisUtterance(text)
@@ -112,6 +114,12 @@ function LessonAnalysis({ analysis }: { analysis: any }) {
   }
   return (
     <Stack direction="vertical" gap="normal">
+      {translation && (
+        <Stack direction="vertical" gap="condensed">
+          <Label variant="secondary">English translation</Label>
+          <Text size="small" style={{ lineHeight: 1.6, border: 'var(--borderWidth-thin) solid var(--borderColor-muted)', borderRadius: 8, padding: 12, background: 'var(--bgColor-muted)' }}>{translation}</Text>
+        </Stack>
+      )}
       {corrections.length > 0 && (
         <Stack direction="vertical" gap="condensed">
           <Label variant="attention">Corrections ({corrections.length})</Label>
@@ -212,9 +220,48 @@ async function meterStreamRms(stream: MediaStream, ms: number): Promise<number> 
   }
 }
 
+/**
+ * Merge a delta analysis (items found in a just-transcribed chunk) into the
+ * accumulated live analysis. Dedupes by normalized key so repeated words or
+ * the same correction surfacing in two chunks appear once.
+ */
+function mergeDeltaAnalysis(prev: any, delta: any): any {
+  if (!delta || typeof delta !== 'object') return prev ?? {}
+  const keyOf = (s: string) => (s || '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim()
+  const mergeByKey = <T,>(existing: T[], incoming: T[], keyFn: (item: T) => string) => {
+    const seen = new Set(existing.map(keyFn).filter(Boolean))
+    const merged = [...existing]
+    for (const item of incoming) {
+      const k = keyFn(item)
+      if (!k || seen.has(k)) continue
+      seen.add(k)
+      merged.push(item)
+    }
+    return merged
+  }
+  const base = prev && typeof prev === 'object' && !prev.rawResponse ? prev : { corrections: [], vocabulary: [], grammarPatterns: [], nextSteps: [] }
+  // Live translation: each delta adds its own English translation; keep them
+  // in order so the panel reads as a running translation of the lesson.
+  const prevTranslations = Array.isArray(base.translations) ? base.translations : []
+  const newTranslation = typeof delta.translation === 'string' && delta.translation.trim() ? delta.translation.trim() : null
+  return {
+    translations: newTranslation ? [...prevTranslations, newTranslation] : prevTranslations,
+    corrections: mergeByKey(Array.isArray(base.corrections) ? base.corrections : [], Array.isArray(delta.corrections) ? delta.corrections : [], (c: any) => keyOf(c?.corrected || c?.original)),
+    vocabulary: mergeByKey(Array.isArray(base.vocabulary) ? base.vocabulary : [], Array.isArray(delta.vocabulary) ? delta.vocabulary : [], (v: any) => keyOf(v?.word || v?.german)),
+    grammarPatterns: mergeByKey(Array.isArray(base.grammarPatterns) ? base.grammarPatterns : [], Array.isArray(delta.grammarPatterns) ? delta.grammarPatterns : [], (g: any) => keyOf(g?.pattern)),
+    nextSteps: Array.isArray(base.nextSteps) ? base.nextSteps : [], // live deltas don't contribute steps; the final pass fills them
+    live: true,
+  }
+}
+
 function TeacherMode({ recording, setRecording, lessonTitle, setLessonTitle, status, setStatus, onBack }: { recording: boolean; setRecording: (value: boolean) => void; lessonTitle: string; setLessonTitle: (value: string) => void; status: string; setStatus: (value: string) => void; onBack: () => void }) {
   const [transcript, setTranscript] = useState('')
   const [analysis, setAnalysis] = useState<any>(null)
+  // Live AI feedback: delta analyses accumulate during recording; the
+  // authoritative full analysis replaces the merged result at stop.
+  const liveAnalysisRef = useRef<any>(null)
+  const analyzeQueueRef = useRef<Promise<void>>(Promise.resolve())
+  const recordingRef = useRef(false) // stop-delta gating after recorder ends
   const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null)
   const [audioChunks, setAudioChunks] = useState<Blob[]>([])
   const [level, setLevel] = useState('A2')
@@ -327,8 +374,31 @@ function TeacherMode({ recording, setRecording, lessonTitle, setLessonTitle, sta
         const data = await res.json().catch(() => ({}))
         const text = (Array.isArray(data.segments) ? data.segments : []).map((s: any) => s.text).join(' ').trim()
         if (!text) return
-        liveTextRef.current = liveTextRef.current ? `${liveTextRef.current} ${text}` : text
+        const prevText = liveTextRef.current
+        liveTextRef.current = prevText ? `${prevText} ${text}` : text
         setTranscript(liveTextRef.current)
+        // Live AI feedback: analyze ONLY the new sentences against the
+        // accumulated context, then merge into the panel. Serialized on its
+        // own queue; a failed delta is skipped without touching the stream.
+        if (recordingRef.current) {
+          const deltaText = text
+          const context = prevText
+          analyzeQueueRef.current = analyzeQueueRef.current.then(async () => {
+            try {
+              const res = await apiFetch('/api/analyze', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ transcript: deltaText, level, mode: 'delta', context }),
+              })
+              if (!res.ok) return
+              const data = await res.json().catch(() => ({}))
+              const deltaAnalysis = data.analysis ?? data
+              if (!deltaAnalysis || deltaAnalysis.rawResponse) return
+              liveAnalysisRef.current = mergeDeltaAnalysis(liveAnalysisRef.current, deltaAnalysis)
+              setAnalysis(liveAnalysisRef.current)
+            } catch {}
+          })
+        }
       } catch {
         // A dropped chunk must not kill the live stream; the stop-time path recovers.
       }
@@ -374,11 +444,13 @@ function TeacherMode({ recording, setRecording, lessonTitle, setLessonTitle, sta
 
         // Tear down the live tap, flush any remaining samples, and let the
         // last in-flight chunk job finish before continuing.
+        recordingRef.current = false // stop firing new delta analyses
         try { processorRef.current?.disconnect(); sourceRef.current?.disconnect(); await audioCtxRef.current?.close() } catch {}
         processorRef.current = null; sourceRef.current = null; audioCtxRef.current = null
         setInputLevel(0)
         flushLiveChunk(true)
         await liveQueueRef.current.catch(() => {})
+        await analyzeQueueRef.current.catch(() => {}) // let the last delta land
 
         // Full chain, in order: live server chunks → Web Speech finals
         // captured while recording → full-file server pass → in-browser Whisper.
@@ -470,6 +542,9 @@ function TeacherMode({ recording, setRecording, lessonTitle, setLessonTitle, sta
       browserTranscriptRef.current = ''
       pendingLiveRef.current = []
       liveQueueRef.current = Promise.resolve()
+      recordingRef.current = true
+      liveAnalysisRef.current = null
+      analyzeQueueRef.current = Promise.resolve()
       setAnalysis(null)
       startedAtRef.current = Date.now()
       timerRef.current = setInterval(() => {
@@ -631,12 +706,12 @@ function TeacherMode({ recording, setRecording, lessonTitle, setLessonTitle, sta
               <section style={{ border: 'var(--borderWidth-thin) solid var(--borderColor-default)', borderRadius: 12, padding: 28, background: 'var(--bgColor-muted)' }}>
                 <Stack direction="vertical" gap="normal">
                   <Heading as="h2" variant="medium">AI Feedback</Heading>
-                  <Text style={{ color: 'var(--fgColor-muted)' }}>Corrections and learning suggestions will appear here.</Text>
+                  <Text style={{ color: 'var(--fgColor-muted)' }}>Corrections and vocabulary appear live while you speak, refined by a full analysis when you stop.</Text>
                   <div style={{ minHeight: 200, border: 'var(--borderWidth-thin) solid var(--borderColor-muted)', borderRadius: 8, padding: 16, background: 'var(--bgColor-default)' }}>
                     {analysis ? (
                       <LessonAnalysis analysis={analysis} />
                     ) : (
-                      <Text size="small" style={{ color: 'var(--fgColor-muted)' }}>Analysis will be generated when you stop recording.</Text>
+                      <Text size="small" style={{ color: 'var(--fgColor-muted)' }}>{recording ? 'Listening — corrections appear here as you speak…' : 'Analysis will be generated when you stop recording.'}</Text>
                     )}
                   </div>
                 </Stack>
